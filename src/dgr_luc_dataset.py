@@ -144,7 +144,7 @@ def _make_single_target_mask(mask_binary, target_clz):
     # mask_img should already be binary
     assert mask_binary.min() >= 0
     assert mask_binary.max() <= 1
-    rgb = DgrDataset.target_to_rgb(target_clz)
+    rgb = DgrLucDataset.target_to_rgb(target_clz)
     c1 = mask_binary[:, :, 0] == rgb[0]
     c2 = mask_binary[:, :, 1] == rgb[1]
     c3 = mask_binary[:, :, 2] == rgb[2]
@@ -170,7 +170,7 @@ def _visualise_data(metadata_df, n_to_show=5):
         for target in range(7):
             single_mask = _make_single_target_mask(mask_binary, target)
             axes[(target + 2) // 3][(target + 2) % 3].imshow(single_mask, vmin=0, vmax=1, cmap='gray')
-            axes[(target + 2) // 3][(target + 2) % 3].set_title(DgrDataset.target_to_name(target))
+            axes[(target + 2) // 3][(target + 2) % 3].set_title(DgrLucDataset.target_to_name(target))
         plt.tight_layout()
         plt.show()
 
@@ -183,7 +183,7 @@ def _generate_per_class_coverage(metadata_df):
 
     cover_dist_df = metadata_df[['image_id']].copy()
     for i in range(7):
-        cover_dist_df[DgrDataset.target_to_name(i)] = pd.Series(dtype=float)
+        cover_dist_df[DgrLucDataset.target_to_name(i)] = pd.Series(dtype=float)
 
     for i in tqdm(range(len(metadata_df)), desc='Calculating class coverage for each image', leave=False):
         mask_path = metadata_df['mask_path'][i]
@@ -194,7 +194,7 @@ def _generate_per_class_coverage(metadata_df):
         s = 0
         for target in range(7):
             single_mask = _make_single_target_mask(mask_binary, target)
-            name = DgrDataset.target_to_name(target)
+            name = DgrLucDataset.target_to_name(target)
             percentage_cover = len(single_mask.nonzero())/single_mask.numel()
             cover_dist_df.loc[i, name] = percentage_cover
             s += percentage_cover
@@ -203,12 +203,12 @@ def _generate_per_class_coverage(metadata_df):
 
 
 def _plot_per_class_coverage():
-    cover_dist_df = DgrDataset.load_per_class_coverage()
+    cover_dist_df = DgrLucDataset.load_per_class_coverage()
     fig, axes = plt.subplots(nrows=1, ncols=7, figsize=(14, 2))
     for target in range(7):
-        name = DgrDataset.target_to_name(target)
+        name = DgrLucDataset.target_to_name(target)
         dist = cover_dist_df[name]
-        axes[target].set_title(DgrDataset.target_to_name(target))
+        axes[target].set_title(DgrLucDataset.target_to_name(target))
         axes[target].hist(dist, bins=25, range=(0, 1), log=True)
         axes[target].set_xlabel('Coverage')
         axes[target].set_ylabel('Density')
@@ -229,7 +229,7 @@ def _baseline_performance():
 
     idx = 0
     results_arr = np.full((1, 5, 3), np.nan, dtype=object)
-    for train_dataset, val_dataset, test_dataset in DgrDataset.create_datasets():
+    for train_dataset, val_dataset, test_dataset in DgrLucDataset.create_datasets():
         train_mean_target = train_dataset.targets.mean(dim=0)
         train_results = performance_for_dataset(train_mean_target, train_dataset)
         val_results = performance_for_dataset(train_mean_target, val_dataset)
@@ -239,9 +239,9 @@ def _baseline_performance():
     output_regression_results(['Baseline'], results_arr)
 
 
-class DgrDataset(MilDataset):
+class DgrLucDataset(MilDataset):
 
-    name = 'dgr'
+    name = 'dgr_luc'
     d_in = 1200
     n_expected_dims = 4  # i x c x h x w
     n_classes = 7
@@ -260,9 +260,8 @@ class DgrDataset(MilDataset):
         patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(grid_size, patch_size))
         coverage_df = cls.load_per_class_coverage()
         complete_df = pd.merge(patches_df, coverage_df, on='image_id')
-        class_names = cls.class_dict_df['name'].tolist()
         bags = np.asarray([s.split(",") for s in complete_df['patch_paths'].tolist()])
-        targets = complete_df[class_names].to_numpy()
+        targets = complete_df[cls.clz_names].to_numpy()
         bags_metadata = np.asarray([{'id': id_} for id_ in complete_df['image_id'].tolist()])
         return bags, targets, bags_metadata
 
@@ -282,7 +281,7 @@ class DgrDataset(MilDataset):
 
     @classmethod
     def create_datasets(cls, random_state=12, grid_size=153, patch_size=28):
-        bags, targets, bags_metadata = DgrDataset.load_dgr_bags(patch_size=patch_size)
+        bags, targets, bags_metadata = DgrLucDataset.load_dgr_bags(patch_size=patch_size)
 
         for train_split, val_split, test_split in cls.get_dataset_splits(bags, targets, random_state=random_state):
             # Setup bags, targets, and metadata for splits
@@ -292,9 +291,9 @@ class DgrDataset(MilDataset):
             train_targets, val_targets, test_targets = targets[train_split], targets[val_split], targets[test_split]
             train_md, val_md, test_md = bags_metadata[train_split], bags_metadata[val_split], bags_metadata[test_split]
 
-            train_dataset = DgrDataset(train_bags, train_targets, train_md)
-            val_dataset = DgrDataset(val_bags, val_targets, val_md)
-            test_dataset = DgrDataset(test_bags, test_targets, test_md)
+            train_dataset = DgrLucDataset(train_bags, train_targets, train_md)
+            val_dataset = DgrLucDataset(val_bags, val_targets, val_md)
+            test_dataset = DgrLucDataset(test_bags, test_targets, test_md)
 
             yield train_dataset, val_dataset, test_dataset
 
@@ -313,22 +312,37 @@ class DgrDataset(MilDataset):
             yield train_split, val_split, test_split
 
     @classmethod
+    @property
+    def clz_names(cls):
+        return cls.class_dict_df['name'].tolist()
+
+    @classmethod
     def create_complete_dataset(cls):
         raise NotImplementedError
 
+    @classmethod
+    def get_target_mask(cls, instance_targets, clz):
+        pass
+
     @overrides
-    def summarise(self):
+    def summarise(self, out_clz_dist=True):
         print('- MIL Dataset Summary -')
         print(' {:d} bags'.format(len(self.bags)))
+
+        if out_clz_dist:
+            print(' Class Distribution')
+            for clz in range(self.n_classes):
+                print('  Class {:d} - {:s}'.format(clz, self.clz_names[clz]))
+                clz_targets = self.targets[:, clz]
+                hist, bins = np.histogram(clz_targets, bins=np.linspace(0, 1, 11))
+                for i in range(len(hist)):
+                    print('   {:.1f}-{:.1f}: {:d}'.format(bins[i], bins[i + 1], hist[i]))
+
         bag_sizes = [len(b) for b in self.bags]
         print(' Bag Sizes')
         print('  Min: {:d}'.format(min(bag_sizes)))
         print('  Avg: {:.1f}'.format(np.mean(bag_sizes)))
         print('  Max: {:d}'.format(max(bag_sizes)))
-
-    @classmethod
-    def get_target_mask(cls, instance_targets, clz):
-        pass
 
     def __getitem__(self, bag_idx):
         instances = []

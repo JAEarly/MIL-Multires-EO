@@ -1,2 +1,5 @@
 /.idea/
 /data/
+/wandb/
+/out/tune/
+__pycache__/
