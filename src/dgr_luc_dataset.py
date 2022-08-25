@@ -261,7 +261,7 @@ class DgrLucDataset(MilDataset):
         coverage_df = cls.load_per_class_coverage()
         complete_df = pd.merge(patches_df, coverage_df, on='image_id')
         bags = np.asarray([s.split(",") for s in complete_df['patch_paths'].tolist()])
-        targets = complete_df[cls.clz_names].to_numpy()
+        targets = complete_df[cls.get_clz_names()].to_numpy()
         bags_metadata = np.asarray([{'id': id_} for id_ in complete_df['image_id'].tolist()])
         return bags, targets, bags_metadata
 
@@ -311,9 +311,9 @@ class DgrLucDataset(MilDataset):
             # Yield splits
             yield train_split, val_split, test_split
 
+    # TODO should this be a property?
     @classmethod
-    @property
-    def clz_names(cls):
+    def get_clz_names(cls):
         return cls.class_dict_df['name'].tolist()
 
     @classmethod
@@ -332,7 +332,7 @@ class DgrLucDataset(MilDataset):
         if out_clz_dist:
             print(' Class Distribution')
             for clz in range(self.n_classes):
-                print('  Class {:d} - {:s}'.format(clz, self.clz_names[clz]))
+                print('  Class {:d} - {:s}'.format(clz, self.get_clz_names()[clz]))
                 clz_targets = self.targets[:, clz]
                 hist, bins = np.histogram(clz_targets, bins=np.linspace(0, 1, 11))
                 for i in range(len(hist)):
