@@ -1,5 +1,7 @@
 import argparse
 
+from codecarbon import OfflineEmissionsTracker
+
 from bonfire.tune import create_tuner_from_config
 from bonfire.util import get_device
 from bonfire.util.yaml_util import parse_yaml_config
@@ -42,4 +44,8 @@ def run_tuning():
 
 
 if __name__ == "__main__":
+    _tracker = OfflineEmissionsTracker(country_iso_code="GBR", project_name="Tune_MIL_LUC_Model",
+                                       output_dir="out/emissions", log_level='error')
+    _tracker.start()
     run_tuning()
+    _tracker.stop()

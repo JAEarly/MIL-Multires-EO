@@ -1,5 +1,7 @@
 import argparse
 
+from codecarbon import OfflineEmissionsTracker
+
 from bonfire.train.trainer import create_trainer_from_clzs
 from bonfire.util import get_device
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
@@ -44,4 +46,8 @@ def run_training():
 
 
 if __name__ == "__main__":
+    _tracker = OfflineEmissionsTracker(country_iso_code="GBR", project_name="Train_MIL_LUC_Model",
+                                       output_dir="out/emissions", log_level='error')
+    _tracker.start()
     run_training()
+    _tracker.stop()
