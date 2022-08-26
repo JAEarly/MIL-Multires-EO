@@ -13,7 +13,7 @@ device = get_device()
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MIL LUC tuning script.')
-    parser.add_argument('-n', '--n_trials', default=100, type=int, help='The number of trials to run when tuning.')
+    parser.add_argument('-n', '--n_trials', default=70, type=int, help='The number of trials to run when tuning.')
     args = parser.parse_args()
     return args.n_trials
 
