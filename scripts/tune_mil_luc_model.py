@@ -14,17 +14,25 @@ device = get_device()
 def parse_args():
     parser = argparse.ArgumentParser(description='MIL LUC tuning script.')
     parser.add_argument('-n', '--n_trials', default=70, type=int, help='The number of trials to run when tuning.')
+    parser.add_argument('-t', '--track_emissions', action='store_true',
+                        help='Whether or not to track emissions using CodeCarbon.')
     args = parser.parse_args()
-    return args.n_trials
+    return args.n_trials, args.track_emissions
 
 
 def run_tuning():
+    n_trials, track_emissions = parse_args()
+
+    tracker = None
+    if track_emissions:
+        tracker = OfflineEmissionsTracker(country_iso_code="GBR", project_name="Tune_MIL_LUC_Model",
+                                          output_dir="out/emissions", log_level='error')
+        tracker.start()
+
     dataset_clz = DgrLucDataset
     dataset_name = dataset_clz.name
     model_clz = DgrInstanceSpaceNN
     model_name = model_clz.name
-
-    n_trials = parse_args()
 
     # Create tuner
     config_path = "config/dgr_luc_config.yaml"
@@ -42,10 +50,9 @@ def run_tuning():
     # Start run
     tuner.run_study()
 
+    if tracker:
+        tracker.stop()
+
 
 if __name__ == "__main__":
-    _tracker = OfflineEmissionsTracker(country_iso_code="GBR", project_name="Tune_MIL_LUC_Model",
-                                       output_dir="out/emissions", log_level='error')
-    _tracker.start()
     run_tuning()
-    _tracker.stop()
