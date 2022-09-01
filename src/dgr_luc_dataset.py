@@ -1,4 +1,6 @@
 import os
+from abc import ABC, abstractmethod
+from collections import namedtuple
 
 import numpy as np
 import pandas as pd
@@ -20,12 +22,28 @@ RECONSTRUCTION_DATA_DIR_FMT = 'data/DeepGlobeLUC/reconstruction_{:d}_{:d}'
 TARGET_OUT_PATH = 'data/DeepGlobeLUC/targets.csv'
 CLASS_DIST_PATH = 'data/DeepGlobeLUC/class_distribution.csv'
 
+PatchDetails = namedtuple('PatchDetails', 'grid_size patch_size grid_dim')
 
-def setup():
+
+def get_patch_details(model_type):
+    # grid_size: Size of each grid cell to extract from (original resolution)
+    # patch_size: Size to transform each patch to (new resolution)
+    # grid_dim: Dimensionality of grid (i.e., number of cells = grid_dim ** 2)
+    if model_type == "small":
+        return PatchDetails(153, 28, 16)
+    elif model_type == "medium":
+        return PatchDetails(153, 56, 16)
+    elif model_type == "resnet18":
+        return PatchDetails(2448, 224, 1)
+    else:
+        raise ValueError("No patch details registered for model type {:s}".format(model_type))
+
+
+def setup(model_type):
     metadata_df = _load_metadata_df()
-    # _extract_patches(metadata_df)
+    _extract_patches(metadata_df, model_type)
     # _calculate_dataset_normalisation(metadata_df)
-    _visualise_data(metadata_df)
+    # _visualise_data(metadata_df)
     # _generate_per_class_coverage(metadata_df)
     # _plot_per_class_coverage()
     # _baseline_performance()
@@ -60,26 +78,26 @@ def _load_class_dict_df():
     return class_dict_df
 
 
-def _extract_patches(metadata_df, grid_size=153, patch_size=28):
+def _extract_patches(metadata_df, model_type):
     """
     Extract patches from the training images.
     :param metadata_df: Dataframe of image metadata.
-    :param grid_size: Size of each grid cell to extract from (original resolution)
-    :param patch_size: Size to transform each patch to (new resolution)
     """
+    patch_details = get_patch_details(model_type)
+
     # Calculate number of patches per original image (fixed original image size of 2448)
-    num_patches = int(2448 / grid_size * 2448 / grid_size)
+    num_patches = int(2448 / patch_details.grid_size * 2448 / patch_details.grid_size)
     # Calculate the relative reconstructed dimensionality of the new resolution image
-    reconstructed_dim = int(num_patches ** 0.5 * patch_size)
+    reconstructed_dim = int(num_patches ** 0.5 * patch_details.patch_size)
 
     print('Extracting grid patches')
-    print(' Grid size: {:d}'.format(grid_size))
-    print(' Patch size: {:d}'.format(patch_size))
+    print(' Grid size: {:d}'.format(patch_details.grid_size))
+    print(' Patch size: {:d}'.format(patch_details.patch_size))
     print(' {:d} patches per image'.format(num_patches))
     print(' {:d} x {:d} effective new size'.format(reconstructed_dim, reconstructed_dim))
 
     # Create output directory or skip if output directory already exists (assumes previous extraction ran correctly)
-    patch_dir = PATCH_DATA_DIR_FMT.format(grid_size, patch_size)
+    patch_dir = PATCH_DATA_DIR_FMT.format(patch_details.grid_size, patch_details.patch_size)
     if not os.path.exists(patch_dir):
         os.makedirs(patch_dir)
     else:
@@ -100,15 +118,15 @@ def _extract_patches(metadata_df, grid_size=153, patch_size=28):
         sat_img.thumbnail((reconstructed_dim, reconstructed_dim))
         sat_img_arr = np.array(sat_img)
         # Iterate through each cell in the grid
-        n_x = int(sat_img_arr.shape[0]/patch_size)
-        n_y = int(sat_img_arr.shape[1]/patch_size)
+        n_x = int(sat_img_arr.shape[0]/patch_details.patch_size)
+        n_y = int(sat_img_arr.shape[1]/patch_details.patch_size)
         patch_paths = []
         for i_x in range(n_x):
             for i_y in range(n_y):
                 # Extract patch from original image
-                p_x = i_x * patch_size
-                p_y = i_y * patch_size
-                patch_img_arr = sat_img_arr[p_x:p_x+patch_size, p_y:p_y+patch_size, :]
+                p_x = i_x * patch_details.patch_size
+                p_y = i_y * patch_details.patch_size
+                patch_img_arr = sat_img_arr[p_x:p_x+patch_details.patch_size, p_y:p_y+patch_details.patch_size, :]
                 patch_path = "{:s}/{:d}_{:d}_{:d}.png".format(patch_dir, image_id, i_x, i_y)
                 patch_paths.append(patch_path)
                 patch_img = Image.fromarray(patch_img_arr)
@@ -116,7 +134,7 @@ def _extract_patches(metadata_df, grid_size=153, patch_size=28):
         # Add list of patch paths for this image to the dataframe
         patches_df.loc[i, 'patch_paths'] = ",".join(patch_paths)
     # Save the patch dataframe
-    patches_df.to_csv(PATCH_DATA_CSV_FMT.format(grid_size, patch_size), index=False)
+    patches_df.to_csv(PATCH_DATA_CSV_FMT.format(patch_details.grid_size, patch_details.patch_size), index=False)
 
 
 def _calculate_dataset_normalisation(metadata_df):
@@ -240,9 +258,8 @@ def _baseline_performance():
     output_regression_results(['Baseline'], results_arr)
 
 
-class DgrLucDataset(MilDataset):
+class DgrLucDataset(MilDataset, ABC):
 
-    name = 'dgr_luc'
     d_in = 1200
     n_expected_dims = 4  # i x c x h x w
     n_classes = 7
@@ -250,18 +267,26 @@ class DgrLucDataset(MilDataset):
     class_dict_df = _load_class_dict_df()
     dataset_mean = (0.4082, 0.3791, 0.2816)
     dataset_std = (0.06722, 0.04668, 0.04768)
-    basic_transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(dataset_mean, dataset_std)])
+    basic_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(dataset_mean, dataset_std)
+    ])
     metadata_df = _load_metadata_df()
 
-    def __init__(self, bags, targets, bags_metadata, grid_size, patch_size):
+    def __init__(self, bags, targets, bags_metadata):
+        # TODO instance targets
         super().__init__(bags, targets, None, bags_metadata)
         self.transform = self.basic_transform
-        self.grid_size = grid_size
-        self.patch_size = patch_size
 
     @classmethod
-    def load_dgr_bags(cls, grid_size=153, patch_size=28):
-        patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(grid_size, patch_size))
+    @property
+    @abstractmethod
+    def patch_details(cls) -> PatchDetails:
+        pass
+
+    @classmethod
+    def load_dgr_bags(cls):
+        patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(cls.patch_details.grid_size, cls.patch_details.patch_size))
         coverage_df = cls.load_per_class_coverage()
         complete_df = pd.merge(patches_df, coverage_df, on='image_id')
         bags = np.asarray([s.split(",") for s in complete_df['patch_paths'].tolist()])
@@ -294,8 +319,13 @@ class DgrLucDataset(MilDataset):
         return pd.read_csv(CLASS_DIST_PATH)
 
     @classmethod
-    def create_datasets(cls, random_state=12, grid_size=153, patch_size=28):
-        bags, targets, bags_metadata = DgrLucDataset.load_dgr_bags(grid_size=grid_size, patch_size=patch_size)
+    def create_complete_dataset(cls):
+        bags, targets, bags_metadata = DgrLucDataset.load_dgr_bags()
+        return DgrLucDataset(bags, targets, bags_metadata)
+
+    @classmethod
+    def create_datasets(cls, random_state=12):
+        bags, targets, bags_metadata = cls.load_dgr_bags()
 
         for train_split, val_split, test_split in cls.get_dataset_splits(bags, targets, random_state=random_state):
             # Setup bags, targets, and metadata for splits
@@ -305,9 +335,9 @@ class DgrLucDataset(MilDataset):
             train_targets, val_targets, test_targets = targets[train_split], targets[val_split], targets[test_split]
             train_md, val_md, test_md = bags_metadata[train_split], bags_metadata[val_split], bags_metadata[test_split]
 
-            train_dataset = DgrLucDataset(train_bags, train_targets, train_md, grid_size, patch_size)
-            val_dataset = DgrLucDataset(val_bags, val_targets, val_md, grid_size, patch_size)
-            test_dataset = DgrLucDataset(test_bags, test_targets, test_md, grid_size, patch_size)
+            train_dataset = cls(train_bags, train_targets, train_md)
+            val_dataset = cls(val_bags, val_targets, val_md)
+            test_dataset = cls(test_bags, test_targets, test_md)
 
             yield train_dataset, val_dataset, test_dataset
 
@@ -329,11 +359,6 @@ class DgrLucDataset(MilDataset):
     @classmethod
     def get_clz_names(cls):
         return cls.class_dict_df['name'].tolist()
-
-    @classmethod
-    def create_complete_dataset(cls, grid_size=153, patch_size=28):
-        bags, targets, bags_metadata = DgrLucDataset.load_dgr_bags(grid_size=grid_size, patch_size=patch_size)
-        return DgrLucDataset(bags, targets, bags_metadata, grid_size, patch_size)
 
     @classmethod
     def get_target_mask(cls, instance_targets, clz):
@@ -365,22 +390,17 @@ class DgrLucDataset(MilDataset):
         return mask_img
 
     def create_reconstructed_image(self, bag_idx, add_grid=False):
-        if self.grid_size == 153 and self.patch_size == 28:
-            grid_dim = 16
-        else:
-            raise ValueError('Grid dimensionality not set for grid size {:d} and patch size {:d}'
-                             .format(self.grid_size, self.patch_size))
-
-        reconstruction = Image.new('RGBA', (grid_dim * self.patch_size, grid_dim * self.patch_size))
+        reconstruction = Image.new('RGBA', (self.patch_details.grid_dim * self.patch_details.patch_size,
+                                            self.patch_details.grid_dim * self.patch_details.patch_size))
         bag = self.bags[bag_idx]
         for idx, patch_path in enumerate(bag):
-            row_idx = idx // grid_dim
-            col_idx = idx % grid_dim
+            row_idx = idx // self.patch_details.grid_dim
+            col_idx = idx % self.patch_details.grid_dim
             patch = Image.open(patch_path).convert('RGBA')
 
             if add_grid:
                 # Create border arr that is the same size as the patch
-                border_arr = np.zeros((self.patch_size, self.patch_size, 4))
+                border_arr = np.zeros((self.patch_details.patch_size, self.patch_details.patch_size, 4))
                 # Set all pixels to white (alpha remains 0)
                 border_arr[:, :, :3] = 255
                 # Set alpha for border pixels
@@ -394,7 +414,8 @@ class DgrLucDataset(MilDataset):
                 patch.paste(border_img, (0, 0), border_img)
             
             # Paste patch into reconstruction
-            reconstruction.paste(im=patch, box=(col_idx * self.patch_size, row_idx * self.patch_size))
+            reconstruction.paste(im=patch, box=(col_idx * self.patch_details.patch_size,
+                                                row_idx * self.patch_details.patch_size))
 
         return reconstruction
 
@@ -411,53 +432,33 @@ class DgrLucDataset(MilDataset):
         return instances, target
 
 
-class DgrLucSingleInstanceDataset(DgrLucDataset):
+class DgrLucDatasetSmall(DgrLucDataset):
 
-    name = 'dgr_luc_single_instance'
-
-    basic_transform = transforms.Compose([
-        transforms.Resize(224),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
+    name = 'dgr_luc_small'
+    patch_details = get_patch_details("small")
 
     def __init__(self, bags, targets, bags_metadata):
-        super().__init__(bags, targets, bags_metadata, 1, 256)
+        super().__init__(bags, targets, bags_metadata)
+
+
+class DgrLucDatasetMedium(DgrLucDataset):
+
+    name = 'dgr_luc_medium'
+    patch_details = get_patch_details("medium")
+
+    def __init__(self, bags, targets, bags_metadata):
+        super().__init__(bags, targets, bags_metadata)
+
+
+class DgrLucDatasetResNet18(DgrLucDataset):
+
+    name = 'dgr_luc_resnet18'
+    patch_details = get_patch_details("resnet18")
+
+    def __init__(self, bags, targets, bags_metadata):
+        super().__init__(bags, targets, bags_metadata)
         self.transform = self.basic_transform
-
-    @classmethod
-    def load_dgr_bags(cls, **kwargs):
-        coverage_df = cls.load_per_class_coverage()
-        bags = np.asarray(cls.metadata_df['sat_image_path'].tolist())
-        bags = np.expand_dims(bags, 1)
-        targets = coverage_df[cls.get_clz_names()].to_numpy()
-        bags_metadata = np.asarray([{'id': id_} for id_ in coverage_df['image_id'].tolist()])
-        return bags, targets, bags_metadata
-
-    @classmethod
-    def create_datasets(cls, random_state=12, **kwargs):
-        bags, targets, bags_metadata = DgrLucSingleInstanceDataset.load_dgr_bags()
-
-        for train_split, val_split, test_split in cls.get_dataset_splits(bags, targets, random_state=random_state):
-            # Setup bags, targets, and metadata for splits
-            train_bags, val_bags, test_bags = [bags[i] for i in train_split], \
-                                              [bags[i] for i in val_split], \
-                                              [bags[i] for i in test_split]
-            train_targets, val_targets, test_targets = targets[train_split], targets[val_split], targets[test_split]
-            train_md, val_md, test_md = bags_metadata[train_split], bags_metadata[val_split], bags_metadata[test_split]
-
-            train_dataset = DgrLucSingleInstanceDataset(train_bags, train_targets, train_md)
-            val_dataset = DgrLucSingleInstanceDataset(val_bags, val_targets, val_md)
-            test_dataset = DgrLucSingleInstanceDataset(test_bags, test_targets, test_md)
-
-            yield train_dataset, val_dataset, test_dataset
-
-    @classmethod
-    def create_complete_dataset(cls, **kwargs):
-        bags, targets, bags_metadata = DgrLucSingleInstanceDataset.load_dgr_bags()
-        return DgrLucSingleInstanceDataset(bags, targets, bags_metadata)
 
 
 if __name__ == "__main__":
-    complete_dataset = DgrLucSingleInstanceDataset.create_complete_dataset()
-    complete_dataset.summarise()
+    setup("resnet18")

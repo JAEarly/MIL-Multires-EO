@@ -5,15 +5,15 @@ from codecarbon import OfflineEmissionsTracker
 from bonfire.train.trainer import create_trainer_from_clzs, create_normal_dataloader
 from bonfire.util import get_device
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-from dgr_luc_dataset import DgrLucDataset, DgrLucSingleInstanceDataset
-from dgr_luc_models import DgrInstanceSpaceNNSmall, DgrResNet18
+import dgr_luc_dataset
+import dgr_luc_models
 
 device = get_device()
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MIL LUC training script.')
-    parser.add_argument('model', choices=['small', 'resnet18'], help="Type of model to train.")
+    parser.add_argument('model', choices=['small', 'medium', 'resnet18'], help="Type of model to train.")
     parser.add_argument('-r', '--n_repeats', default=1, type=int, help='The number of models to train (>=1).')
     parser.add_argument('-t', '--track_emissions', action='store_true',
                         help='Whether or not to track emissions using CodeCarbon.')
@@ -31,12 +31,16 @@ def run_training():
         tracker.start()
 
     if model_type == 'small':
-        dataset_clz = DgrLucDataset
-        model_clz = DgrInstanceSpaceNNSmall
+        dataset_clz = dgr_luc_dataset.DgrLucDatasetSmall
+        model_clz = dgr_luc_models.DgrInstanceSpaceNNSmall
+        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz)
+    elif model_type == 'medium':
+        dataset_clz = dgr_luc_dataset.DgrLucDatasetMedium
+        model_clz = dgr_luc_models.DgrInstanceSpaceNNMedium
         trainer = create_trainer_from_clzs(device, model_clz, dataset_clz)
     elif model_type == 'resnet18':
-        dataset_clz = DgrLucSingleInstanceDataset
-        model_clz = DgrResNet18
+        dataset_clz = dgr_luc_dataset.DgrLucDatasetResNet18
+        model_clz = dgr_luc_models.DgrResNet18
         trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, dataloader_func=create_normal_dataloader)
     else:
         raise ValueError("Training set up not provided for model type {:s}".format(model_type))
