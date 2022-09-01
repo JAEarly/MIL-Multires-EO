@@ -251,13 +251,13 @@ class DgrLucDataset(MilDataset):
     dataset_mean = (0.4082, 0.3791, 0.2816)
     dataset_std = (0.06722, 0.04668, 0.04768)
     basic_transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(dataset_mean, dataset_std)])
+    metadata_df = _load_metadata_df()
 
     def __init__(self, bags, targets, bags_metadata, grid_size, patch_size):
         super().__init__(bags, targets, None, bags_metadata)
         self.transform = self.basic_transform
         self.grid_size = grid_size
         self.patch_size = patch_size
-        self.metadata_df = _load_metadata_df()
 
     @classmethod
     def load_dgr_bags(cls, grid_size=153, patch_size=28):
@@ -411,5 +411,53 @@ class DgrLucDataset(MilDataset):
         return instances, target
 
 
+class DgrLucSingleInstanceDataset(DgrLucDataset):
+
+    name = 'dgr_luc_single_instance'
+
+    basic_transform = transforms.Compose([
+        transforms.Resize(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+
+    def __init__(self, bags, targets, bags_metadata):
+        super().__init__(bags, targets, bags_metadata, 1, 256)
+        self.transform = self.basic_transform
+
+    @classmethod
+    def load_dgr_bags(cls, **kwargs):
+        coverage_df = cls.load_per_class_coverage()
+        bags = np.asarray(cls.metadata_df['sat_image_path'].tolist())
+        bags = np.expand_dims(bags, 1)
+        targets = coverage_df[cls.get_clz_names()].to_numpy()
+        bags_metadata = np.asarray([{'id': id_} for id_ in coverage_df['image_id'].tolist()])
+        return bags, targets, bags_metadata
+
+    @classmethod
+    def create_datasets(cls, random_state=12, **kwargs):
+        bags, targets, bags_metadata = DgrLucSingleInstanceDataset.load_dgr_bags()
+
+        for train_split, val_split, test_split in cls.get_dataset_splits(bags, targets, random_state=random_state):
+            # Setup bags, targets, and metadata for splits
+            train_bags, val_bags, test_bags = [bags[i] for i in train_split], \
+                                              [bags[i] for i in val_split], \
+                                              [bags[i] for i in test_split]
+            train_targets, val_targets, test_targets = targets[train_split], targets[val_split], targets[test_split]
+            train_md, val_md, test_md = bags_metadata[train_split], bags_metadata[val_split], bags_metadata[test_split]
+
+            train_dataset = DgrLucSingleInstanceDataset(train_bags, train_targets, train_md)
+            val_dataset = DgrLucSingleInstanceDataset(val_bags, val_targets, val_md)
+            test_dataset = DgrLucSingleInstanceDataset(test_bags, test_targets, test_md)
+
+            yield train_dataset, val_dataset, test_dataset
+
+    @classmethod
+    def create_complete_dataset(cls, **kwargs):
+        bags, targets, bags_metadata = DgrLucSingleInstanceDataset.load_dgr_bags()
+        return DgrLucSingleInstanceDataset(bags, targets, bags_metadata)
+
+
 if __name__ == "__main__":
-    setup()
+    complete_dataset = DgrLucSingleInstanceDataset.create_complete_dataset()
+    complete_dataset.summarise()

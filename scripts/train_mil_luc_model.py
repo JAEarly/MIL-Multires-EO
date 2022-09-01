@@ -2,38 +2,52 @@ import argparse
 
 from codecarbon import OfflineEmissionsTracker
 
-from bonfire.train.trainer import create_trainer_from_clzs
+from bonfire.train.trainer import create_trainer_from_clzs, create_normal_dataloader
 from bonfire.util import get_device
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-from dgr_luc_dataset import DgrLucDataset
-from dgr_luc_models import DgrInstanceSpaceNN
+from dgr_luc_dataset import DgrLucDataset, DgrLucSingleInstanceDataset
+from dgr_luc_models import DgrInstanceSpaceNNSmall, DgrResNet18
 
 device = get_device()
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MIL LUC training script.')
-    parser.add_argument('-r', '--n_repeats', default=5, type=int, help='The number of models to train (>=1).')
+    parser.add_argument('model', choices=['small', 'resnet18'], help="Type of model to train.")
+    parser.add_argument('-r', '--n_repeats', default=1, type=int, help='The number of models to train (>=1).')
+    parser.add_argument('-t', '--track_emissions', action='store_true',
+                        help='Whether or not to track emissions using CodeCarbon.')
     args = parser.parse_args()
-    return args.n_repeats
+    return args.model, args.n_repeats, args.track_emissions
 
 
 def run_training():
-    dataset_clz = DgrLucDataset
-    dataset_name = dataset_clz.name
-    model_clz = DgrInstanceSpaceNN
-    model_name = model_clz.name
+    model_type, n_repeats, track_emissions = parse_args()
 
-    # Parse args
-    n_repeats = parse_args()
+    tracker = None
+    if track_emissions:
+        tracker = OfflineEmissionsTracker(country_iso_code="GBR", project_name="Train_MIL_LUC_Model",
+                                          output_dir="out/emissions", log_level='error')
+        tracker.start()
+
+    if model_type == 'small':
+        dataset_clz = DgrLucDataset
+        model_clz = DgrInstanceSpaceNNSmall
+        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz)
+    elif model_type == 'resnet18':
+        dataset_clz = DgrLucSingleInstanceDataset
+        model_clz = DgrResNet18
+        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, dataloader_func=create_normal_dataloader)
+    else:
+        raise ValueError("Training set up not provided for model type {:s}".format(model_type))
+
+    dataset_name = dataset_clz.name
+    model_name = model_clz.name
 
     # Parse wandb config and get training config for this model
     config_path = "config/dgr_luc_config.yaml"
     config = parse_yaml_config(config_path)
     training_config = parse_training_config(config['training'], model_name)
-
-    # Create trainer
-    trainer = create_trainer_from_clzs(device, model_clz, dataset_clz)
 
     # Log
     print('Starting {:s} training'.format(dataset_name))
@@ -44,10 +58,9 @@ def run_training():
     # Start training
     trainer.train_multiple(training_config, n_repeats=n_repeats)
 
+    if tracker:
+        tracker.stop()
+
 
 if __name__ == "__main__":
-    _tracker = OfflineEmissionsTracker(country_iso_code="GBR", project_name="Train_MIL_LUC_Model",
-                                       output_dir="out/emissions", log_level='error')
-    _tracker.start()
     run_training()
-    _tracker.stop()
