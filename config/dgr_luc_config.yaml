@@ -1,13 +1,13 @@
 training:
   default:
-    lr: 1.e-3
-    wd: 1.e-4
-    dropout: 0.1
+    lr: 1.e-4
+    wd: 1.e-6
+    dropout: 0.4
     n_epochs: 20
     patience: 3
     patience_interval: 1
   InstanceSpaceNN:
-    agg_func: sum
+    agg_func: mean
 tuning:
   default:
     lr: [1.e-6, 5.e-6, 1.e-5, 5.e-5, 1.e-4, 5.e-4, 1.e-3]

@@ -16,18 +16,19 @@ from bonfire.train.metrics import RegressionMetric, output_regression_results
 RAW_DATA_DIR = 'data/DeepGlobeLUC/raw'
 PATCH_DATA_DIR_FMT = 'data/DeepGlobeLUC/patch_{:d}_{:d}'
 PATCH_DATA_CSV_FMT = 'data/DeepGlobeLUC/patch_{:d}_{:d}_data.csv'
+RECONSTRUCTION_DATA_DIR_FMT = 'data/DeepGlobeLUC/reconstruction_{:d}_{:d}'
 TARGET_OUT_PATH = 'data/DeepGlobeLUC/targets.csv'
 CLASS_DIST_PATH = 'data/DeepGlobeLUC/class_distribution.csv'
 
 
 def setup():
     metadata_df = _load_metadata_df()
-    _extract_patches(metadata_df)
-    _calculate_dataset_normalisation(metadata_df)
+    # _extract_patches(metadata_df)
+    # _calculate_dataset_normalisation(metadata_df)
     _visualise_data(metadata_df)
-    _generate_per_class_coverage(metadata_df)
-    _plot_per_class_coverage()
-    _baseline_performance()
+    # _generate_per_class_coverage(metadata_df)
+    # _plot_per_class_coverage()
+    # _baseline_performance()
 
 
 def _load_metadata_df():
@@ -251,9 +252,12 @@ class DgrLucDataset(MilDataset):
     dataset_std = (0.06722, 0.04668, 0.04768)
     basic_transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(dataset_mean, dataset_std)])
 
-    def __init__(self, bags, targets, bags_metadata):
+    def __init__(self, bags, targets, bags_metadata, grid_size, patch_size):
         super().__init__(bags, targets, None, bags_metadata)
         self.transform = self.basic_transform
+        self.grid_size = grid_size
+        self.patch_size = patch_size
+        self.metadata_df = _load_metadata_df()
 
     @classmethod
     def load_dgr_bags(cls, grid_size=153, patch_size=28):
@@ -272,6 +276,16 @@ class DgrLucDataset(MilDataset):
         return rgb
 
     @classmethod
+    def rgb_to_target(cls, r, g, b):
+        r = cls.class_dict_df.loc[(cls.class_dict_df['r'] == r) &
+                                  (cls.class_dict_df['g'] == g) &
+                                  (cls.class_dict_df['b'] == b)]
+        target = r['target'].values.tolist()
+        if len(target) != 1:
+            raise ValueError("Invalid output for rgb to target: {:}".format(target))
+        return target[0]
+
+    @classmethod
     def target_to_name(cls, target):
         return cls.class_dict_df['name'][target]
 
@@ -281,7 +295,7 @@ class DgrLucDataset(MilDataset):
 
     @classmethod
     def create_datasets(cls, random_state=12, grid_size=153, patch_size=28):
-        bags, targets, bags_metadata = DgrLucDataset.load_dgr_bags(patch_size=patch_size)
+        bags, targets, bags_metadata = DgrLucDataset.load_dgr_bags(grid_size=grid_size, patch_size=patch_size)
 
         for train_split, val_split, test_split in cls.get_dataset_splits(bags, targets, random_state=random_state):
             # Setup bags, targets, and metadata for splits
@@ -291,9 +305,9 @@ class DgrLucDataset(MilDataset):
             train_targets, val_targets, test_targets = targets[train_split], targets[val_split], targets[test_split]
             train_md, val_md, test_md = bags_metadata[train_split], bags_metadata[val_split], bags_metadata[test_split]
 
-            train_dataset = DgrLucDataset(train_bags, train_targets, train_md)
-            val_dataset = DgrLucDataset(val_bags, val_targets, val_md)
-            test_dataset = DgrLucDataset(test_bags, test_targets, test_md)
+            train_dataset = DgrLucDataset(train_bags, train_targets, train_md, grid_size, patch_size)
+            val_dataset = DgrLucDataset(val_bags, val_targets, val_md, grid_size, patch_size)
+            test_dataset = DgrLucDataset(test_bags, test_targets, test_md, grid_size, patch_size)
 
             yield train_dataset, val_dataset, test_dataset
 
@@ -317,8 +331,9 @@ class DgrLucDataset(MilDataset):
         return cls.class_dict_df['name'].tolist()
 
     @classmethod
-    def create_complete_dataset(cls):
-        raise NotImplementedError
+    def create_complete_dataset(cls, grid_size=153, patch_size=28):
+        bags, targets, bags_metadata = DgrLucDataset.load_dgr_bags(grid_size=grid_size, patch_size=patch_size)
+        return DgrLucDataset(bags, targets, bags_metadata, grid_size, patch_size)
 
     @classmethod
     def get_target_mask(cls, instance_targets, clz):
@@ -343,6 +358,45 @@ class DgrLucDataset(MilDataset):
         print('  Min: {:d}'.format(min(bag_sizes)))
         print('  Avg: {:.1f}'.format(np.mean(bag_sizes)))
         print('  Max: {:d}'.format(max(bag_sizes)))
+
+    def get_original_mask_img(self, bag_idx):
+        mask_path = self.metadata_df['mask_path'][bag_idx]
+        mask_img = Image.open(mask_path)
+        return mask_img
+
+    def create_reconstructed_image(self, bag_idx, add_grid=False):
+        if self.grid_size == 153 and self.patch_size == 28:
+            grid_dim = 16
+        else:
+            raise ValueError('Grid dimensionality not set for grid size {:d} and patch size {:d}'
+                             .format(self.grid_size, self.patch_size))
+
+        reconstruction = Image.new('RGBA', (grid_dim * self.patch_size, grid_dim * self.patch_size))
+        bag = self.bags[bag_idx]
+        for idx, patch_path in enumerate(bag):
+            row_idx = idx // grid_dim
+            col_idx = idx % grid_dim
+            patch = Image.open(patch_path).convert('RGBA')
+
+            if add_grid:
+                # Create border arr that is the same size as the patch
+                border_arr = np.zeros((self.patch_size, self.patch_size, 4))
+                # Set all pixels to white (alpha remains 0)
+                border_arr[:, :, :3] = 255
+                # Set alpha for border pixels
+                grid_alpha = 0.6 * 255
+                border_arr[0, :, 3] = grid_alpha
+                border_arr[-1, :, 3] = grid_alpha
+                border_arr[:, 0, 3] = grid_alpha
+                border_arr[:, -1, 3] = grid_alpha
+                # Create border image and paste on top of patch
+                border_img = Image.fromarray(np.uint8(border_arr), mode='RGBA')
+                patch.paste(border_img, (0, 0), border_img)
+            
+            # Paste patch into reconstruction
+            reconstruction.paste(im=patch, box=(col_idx * self.patch_size, row_idx * self.patch_size))
+
+        return reconstruction
 
     def __getitem__(self, bag_idx):
         instances = []
