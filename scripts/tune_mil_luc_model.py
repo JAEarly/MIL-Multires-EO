@@ -6,8 +6,8 @@ from bonfire.train.trainer import create_normal_dataloader
 from bonfire.tune import create_tuner_from_config
 from bonfire.util import get_device
 from bonfire.util.yaml_util import parse_yaml_config
-from dgr_luc_dataset import DgrLucDataset, DgrLucSingleInstanceDataset
-from dgr_luc_models import DgrInstanceSpaceNNSmall, DgrResNet18
+import dgr_luc_dataset
+import dgr_luc_models
 
 device = get_device()
 
@@ -32,11 +32,11 @@ def run_tuning():
         tracker.start()
 
     if model_type == 'small':
-        dataset_clz = DgrLucDataset
-        model_clz = DgrInstanceSpaceNNSmall
+        dataset_clz = dgr_luc_dataset.DgrLucDatasetSmall
+        model_clz = dgr_luc_models.DgrInstanceSpaceNNSmall
     elif model_type == 'resnet18':
-        dataset_clz = DgrLucSingleInstanceDataset
-        model_clz = DgrResNet18
+        dataset_clz = dgr_luc_dataset.DgrLucSingleInstanceDataset
+        model_clz = dgr_luc_models.DgrResNet18
     else:
         raise ValueError("Training set up not provided for model type {:s}".format(model_type))
 
