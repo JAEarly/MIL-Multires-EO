@@ -9,8 +9,8 @@ training:
   InstanceSpaceNN:
     agg_func: mean
   DgrResNet18:
-    lr: 1.e-5
-    wd: 1.e-4
+    lr: 5.e-4
+    wd: 1.e-2
 tuning:
   default:
     lr: [1.e-6, 5.e-6, 1.e-5, 5.e-5, 1.e-4, 5.e-4, 1.e-3]
