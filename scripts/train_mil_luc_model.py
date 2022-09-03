@@ -13,7 +13,7 @@ device = get_device()
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MIL LUC training script.')
-    parser.add_argument('model', choices=['small', 'medium', 'resnet18'], help="Type of model to train.")
+    parser.add_argument('model', choices=['16_small', '16', 'resnet18'], help="Type of model to train.")
     parser.add_argument('-r', '--n_repeats', default=1, type=int, help='The number of models to train (>=1).')
     parser.add_argument('-t', '--track_emissions', action='store_true',
                         help='Whether or not to track emissions using CodeCarbon.')

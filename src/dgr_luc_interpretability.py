@@ -20,13 +20,13 @@ class MilLucInterpretabilityStudy:
         self.model = model
 
     def create_reconstructions(self):
-        reconstruction_dir = RECONSTRUCTION_DATA_DIR_FMT.format(self.dataset.grid_size, self.dataset.patch_size)
+        reconstruction_dir = RECONSTRUCTION_DATA_DIR_FMT.format(self.dataset.cell_size, self.dataset.patch_size)
         if not os.path.exists(reconstruction_dir):
             os.makedirs(reconstruction_dir)
 
         for idx in tqdm(range(len(self.dataset)), total=len(self.dataset), desc='Creating reconstructions'):
             reconstruction = self.dataset.create_reconstructed_image(idx, add_grid=True)
-            file_name = "reconstruction_{:d}_{:d}_{:}.png".format(self.dataset.grid_size, self.dataset.patch_size,
+            file_name = "reconstruction_{:d}_{:d}_{:}.png".format(self.dataset.cell_size, self.dataset.patch_size,
                                                                   self.dataset.bags_metadata[idx]['id'])
             reconstruction.save(reconstruction_dir + "/" + file_name)
 
