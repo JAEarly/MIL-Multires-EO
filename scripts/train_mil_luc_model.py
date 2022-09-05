@@ -5,15 +5,16 @@ from codecarbon import OfflineEmissionsTracker
 from bonfire.train.trainer import create_trainer_from_clzs, create_normal_dataloader
 from bonfire.util import get_device
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-import dgr_luc_dataset
-import dgr_luc_models
+from dgr_luc_dataset import get_dataset_clz, get_model_type_list
+from dgr_luc_models import get_model_clz
 
 device = get_device()
+model_type_choices = get_model_type_list()
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MIL LUC training script.')
-    parser.add_argument('model', choices=['16_small', '16', 'resnet18'], help="Type of model to train.")
+    parser.add_argument('model', choices=model_type_choices, help="Type of model to train.")
     parser.add_argument('-r', '--n_repeats', default=1, type=int, help='The number of models to train (>=1).')
     parser.add_argument('-t', '--track_emissions', action='store_true',
                         help='Whether or not to track emissions using CodeCarbon.')
@@ -30,32 +31,24 @@ def run_training():
                                           output_dir="out/emissions", log_level='error')
         tracker.start()
 
-    if model_type == 'small':
-        dataset_clz = dgr_luc_dataset.DgrLucDatasetSmall
-        model_clz = dgr_luc_models.DgrInstanceSpaceNNSmall
-        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz)
-    elif model_type == 'medium':
-        dataset_clz = dgr_luc_dataset.DgrLucDatasetMedium
-        model_clz = dgr_luc_models.DgrInstanceSpaceNNMedium
-        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz)
-    elif model_type == 'resnet18':
-        dataset_clz = dgr_luc_dataset.DgrLucDatasetResNet18
-        model_clz = dgr_luc_models.DgrResNet18
+    model_clz = get_model_clz(model_type)
+    dataset_clz = get_dataset_clz(model_type)
+
+    if model_type == 'resnet':
         trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, dataloader_func=create_normal_dataloader)
     else:
-        raise ValueError("Training set up not provided for model type {:s}".format(model_type))
+        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz)
 
     dataset_name = dataset_clz.name
-    model_name = model_clz.name
 
     # Parse wandb config and get training config for this model
     config_path = "config/dgr_luc_config.yaml"
     config = parse_yaml_config(config_path)
-    training_config = parse_training_config(config['training'], model_name)
+    training_config = parse_training_config(config['training'], model_type)
 
     # Log
     print('Starting {:s} training'.format(dataset_name))
-    print('  Using model {:}'.format(model_name))
+    print('  Using model {:} {:} and dataset {:}'.format(model_type, model_clz, dataset_clz))
     print('  Using device {:}'.format(device))
     print('  Training {:d} models'.format(n_repeats))
 
