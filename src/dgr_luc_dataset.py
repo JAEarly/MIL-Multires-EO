@@ -351,7 +351,8 @@ class DgrLucDataset(MilDataset, ABC):
 
     @classmethod
     def load_dgr_bags(cls):
-        patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(cls.patch_details.cell_size, cls.patch_details.patch_size))
+        patch_details = get_patch_details(cls.model_type)
+        patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(patch_details.cell_size, patch_details.patch_size))
         coverage_df = cls.load_per_class_coverage()
 
         bags = []
