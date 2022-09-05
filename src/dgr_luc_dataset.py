@@ -75,6 +75,10 @@ def get_dataset_list():
             DgrLucDatasetResNet]
 
 
+def get_model_type_list():
+    return [dataset_clz.model_type for dataset_clz in get_dataset_list()]
+
+
 def get_dataset_clz(model_type):
     for dataset_clz in get_dataset_list():
         if dataset_clz.model_type == model_type:
@@ -340,6 +344,7 @@ class DgrLucDataset(MilDataset, ABC):
     def model_type(cls) -> str:
         pass
 
+    @classmethod
     @property
     def patch_details(cls) -> PatchDetails:
         return get_patch_details(cls.model_type)
@@ -351,7 +356,7 @@ class DgrLucDataset(MilDataset, ABC):
 
         bags = []
         instance_targets = []
-        for image_id in coverage_df['image_id'][:3]:
+        for image_id in coverage_df['image_id']:
             image_patch_data = patches_df.loc[patches_df['image_id'] == image_id]
             bag = image_patch_data['path'].tolist()
             bag_instance_targets = image_patch_data[cls.get_clz_names()].to_numpy()
@@ -360,11 +365,6 @@ class DgrLucDataset(MilDataset, ABC):
 
         targets = coverage_df[cls.get_clz_names()].to_numpy()
         bags_metadata = np.asarray([{'id': id_} for id_ in coverage_df['image_id'].tolist()])
-
-        print(len(bags))
-        print(targets.shape)
-        print(len(instance_targets))
-        print(len(bags_metadata))
 
         return bags, targets, instance_targets, bags_metadata
 
@@ -506,7 +506,8 @@ class DgrLucDataset(MilDataset, ABC):
             instances.append(instance)
         instances = torch.stack(instances)
         target = self.targets[bag_idx]
-        return instances, target
+        instance_targets = self.instance_targets[bag_idx]
+        return instances, target, instance_targets
 
 
 class DgrLucDataset16Small(DgrLucDataset):

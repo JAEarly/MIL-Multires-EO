@@ -6,11 +6,20 @@ training:
     n_epochs: 20
     patience: 3
     patience_interval: 1
-  InstanceSpaceNN:
+  16_small:
+    lr: 1.e-4
+    wd: 1.e-5
+    dropout: 0.45
     agg_func: mean
-  DgrResNet18:
+  16_medium:
+    lr: 1.e-4
+    wd: 1.e-5
+    dropout: 0.45
+    agg_func: mean
+  resnet:
     lr: 5.e-4
     wd: 1.e-2
+    dropout: 0
 tuning:
   default:
     lr: [1.e-6, 5.e-6, 1.e-5, 5.e-5, 1.e-4, 5.e-4, 1.e-3]

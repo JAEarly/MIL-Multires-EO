@@ -13,6 +13,16 @@ def get_model_param(key):
     return wandb.config[key]
 
 
+def get_model_clz(model_type):
+    if 'small' in model_type:
+        return DgrInstanceSpaceNNSmall
+    elif 'medium' in model_type:
+        return DgrInstanceSpaceNNMedium
+    elif 'resnet' in model_type:
+        return DgrResNet18
+    raise ValueError('No model class found for model type {:s}'.format(model_type))
+
+
 def _num_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -65,7 +75,6 @@ class DgrInstanceSpaceNNSmall(models.InstanceSpaceNN):
         encoder = DgrEncoderSmall(dropout)
         aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes, dropout, agg_func)
         super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims, encoder, aggregator)
-        print('Num params: {:d}'.format(_num_params(self)))
 
 
 class DgrInstanceSpaceNNMedium(models.InstanceSpaceNN):
@@ -76,7 +85,6 @@ class DgrInstanceSpaceNNMedium(models.InstanceSpaceNN):
         encoder = DgrEncoderMedium(dropout)
         aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes, dropout, agg_func)
         super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims, encoder, aggregator)
-        print('Num params: {:d}'.format(_num_params(self)))
 
 
 class DgrResNet18(models.MultipleInstanceNN):
@@ -89,7 +97,6 @@ class DgrResNet18(models.MultipleInstanceNN):
         # Create pretrained resnet18 model but swap last layer to output the correct number of classes
         self.model = resnet18(weights=ResNet18_Weights.DEFAULT)
         self.model.fc = nn.Linear(self.model.fc.in_features, self.n_classes)
-        print('Num params: {:d}'.format(_num_params(self.model)))
 
     def _internal_forward(self, bags):
         batch_size = len(bags)
@@ -105,5 +112,5 @@ class DgrResNet18(models.MultipleInstanceNN):
             instance = instance.to(self.device).unsqueeze(0)
             bag_prediction = self.model(instance)
             bag_predictions[i] = bag_prediction
-            bag_instance_predictions.append([None])
+            bag_instance_predictions.append(None)
         return bag_predictions, bag_instance_predictions
