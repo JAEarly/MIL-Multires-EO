@@ -18,15 +18,20 @@ def get_model_clz(model_type):
         return DgrInstanceSpaceNNSmall
     elif 'medium' in model_type:
         return DgrInstanceSpaceNNMedium
+    elif 'large' in model_type:
+        return DgrInstanceSpaceNNLarge
     elif 'resnet' in model_type:
         return DgrResNet18
     raise ValueError('No model class found for model type {:s}'.format(model_type))
 
 
-def _num_params(model):
+def get_n_params(model_type):
+    model_clz = get_model_clz(model_type)
+    model = model_clz('cpu')
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
+DGR_D_CONV_OUT = 1200
 DGR_D_ENC = 128
 DGR_DS_ENC_HID = (512,)
 DGR_DS_AGG_HID = (64,)
@@ -39,7 +44,7 @@ class DgrEncoderSmall(nn.Module):
         conv1 = mod.ConvBlock(c_in=3, c_out=36, kernel_size=4, stride=1, padding=0)
         conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
         self.fe = nn.Sequential(conv1, conv2)
-        self.fc_stack = mod.FullyConnectedStack(DgrLucDataset.d_in, DGR_DS_ENC_HID, DGR_D_ENC,
+        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT, DGR_DS_ENC_HID, DGR_D_ENC,
                                                 final_activation_func=None, dropout=dropout)
 
     def forward(self, instances):
@@ -57,7 +62,26 @@ class DgrEncoderMedium(nn.Module):
         conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
         conv3 = mod.ConvBlock(c_in=48, c_out=48, kernel_size=3, stride=1, padding=0)
         self.fe = nn.Sequential(conv1, conv2, conv3)
-        self.fc_stack = mod.FullyConnectedStack(DgrLucDataset.d_in, DGR_DS_ENC_HID, DGR_D_ENC,
+        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT, DGR_DS_ENC_HID, DGR_D_ENC,
+                                                final_activation_func=None, dropout=dropout)
+
+    def forward(self, instances):
+        x = self.fe(instances)
+        x = x.view(x.size(0), -1)
+        x = self.fc_stack(x)
+        return x
+
+
+class DgrEncoderLarge(nn.Module):
+
+    def __init__(self, dropout):
+        super().__init__()
+        conv1 = mod.ConvBlock(c_in=3, c_out=36, kernel_size=4, stride=1, padding=0)
+        conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
+        conv3 = mod.ConvBlock(c_in=48, c_out=48, kernel_size=3, stride=1, padding=0)
+        conv4 = mod.ConvBlock(c_in=48, c_out=75, kernel_size=3, stride=1, padding=0)
+        self.fe = nn.Sequential(conv1, conv2, conv3, conv4)
+        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT, DGR_DS_ENC_HID, DGR_D_ENC,
                                                 final_activation_func=None, dropout=dropout)
 
     def forward(self, instances):
@@ -83,6 +107,16 @@ class DgrInstanceSpaceNNMedium(models.InstanceSpaceNN):
         dropout = get_model_param("dropout")
         agg_func = get_model_param("agg_func")
         encoder = DgrEncoderMedium(dropout)
+        aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes, dropout, agg_func)
+        super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims, encoder, aggregator)
+
+
+class DgrInstanceSpaceNNLarge(models.InstanceSpaceNN):
+
+    def __init__(self, device):
+        dropout = get_model_param("dropout")
+        agg_func = get_model_param("agg_func")
+        encoder = DgrEncoderLarge(dropout)
         aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes, dropout, agg_func)
         super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims, encoder, aggregator)
 

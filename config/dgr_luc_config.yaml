@@ -16,6 +16,26 @@ training:
     wd: 1.e-5
     dropout: 0.45
     agg_func: mean
+  16_large:
+    lr: 1.e-4
+    wd: 1.e-5
+    dropout: 0.45
+    agg_func: mean
+  24_small:
+    lr: 1.e-4
+    wd: 1.e-5
+    dropout: 0.45
+    agg_func: mean
+  24_medium:
+    lr: 1.e-4
+    wd: 1.e-5
+    dropout: 0.45
+    agg_func: mean
+  24_large:
+    lr: 1.e-4
+    wd: 1.e-5
+    dropout: 0.45
+    agg_func: mean
   resnet:
     lr: 5.e-4
     wd: 1.e-2

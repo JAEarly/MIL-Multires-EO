@@ -14,8 +14,9 @@ from tqdm import tqdm
 from bonfire.data.mil_dataset import MilDataset
 from bonfire.train.metrics import RegressionMetric, output_regression_results
 
+
 RAW_DATA_DIR = 'data/DeepGlobeLUC/raw'
-PATCH_DATA_CSV_FMT = 'data/DeepGlobeLUC/patch_{:d}_{:d}_data.csv'
+PATCH_DATA_CSV_FMT = 'data/DeepGlobeLUC/patch_{:d}_data.csv'
 RECONSTRUCTION_DATA_DIR_FMT = 'data/DeepGlobeLUC/reconstruction_{:d}_{:d}'
 TARGET_OUT_PATH = 'data/DeepGlobeLUC/targets.csv'
 CLASS_DIST_PATH = 'data/DeepGlobeLUC/class_distribution.csv'
@@ -59,10 +60,14 @@ def get_patch_details(model_type):
         return PatchDetails(16, 28)
     elif model_type == "16_medium":
         return PatchDetails(16, 56)
+    elif model_type == "16_large":
+        return PatchDetails(16, 102)
     elif model_type == "24_small":
         return PatchDetails(24, 28)
     elif model_type == "24_medium":
         return PatchDetails(24, 56)
+    elif model_type == "24_large":
+        return PatchDetails(24, 102)
     elif model_type == "resnet":
         return PatchDetails(1, 224)
     else:
@@ -70,8 +75,8 @@ def get_patch_details(model_type):
 
 
 def get_dataset_list():
-    return [DgrLucDataset16Small, DgrLucDataset16Medium, DgrLucDataset24Small, DgrLucDataset24Medium,
-            DgrLucDatasetResNet]
+    return [DgrLucDatasetResNet, DgrLucDataset16Small, DgrLucDataset16Medium, DgrLucDataset16Large,
+            DgrLucDataset24Small, DgrLucDataset24Medium, DgrLucDataset24Large]
 
 
 def get_model_type_list():
@@ -171,7 +176,7 @@ def _setup_patch_csv(metadata_df, model_type):
     # Save the patch dataframe
     df_cols = ['image_id', 'i_x', 'i_y'] + [DgrLucDataset.target_to_name(i) for i in range(7)]
     patches_df = pd.DataFrame(data=all_patch_data, columns=df_cols)
-    patches_df.to_csv(PATCH_DATA_CSV_FMT.format(patch_details.cell_size, patch_details.patch_size), index=False)
+    patches_df.to_csv(PATCH_DATA_CSV_FMT.format(patch_details.cell_size), index=False)
 
 
 def _calculate_dataset_normalisation(metadata_df):
@@ -327,7 +332,7 @@ class DgrLucDataset(MilDataset, ABC):
 
     @classmethod
     def load_dgr_bags(cls):
-        patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(cls.patch_details.cell_size, cls.patch_details.patch_size))
+        patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(cls.patch_details.cell_size))
         coverage_df = cls.load_per_class_coverage()
         metadata_df = _load_metadata_df()
 
@@ -516,6 +521,12 @@ class DgrLucDataset16Medium(DgrLucDataset):
     patch_details = get_patch_details(model_type)
 
 
+class DgrLucDataset16Large(DgrLucDataset):
+    model_type = "16_large"
+    name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
+
+
 class DgrLucDataset24Small(DgrLucDataset):
     model_type = "24_small"
     name = "dgr_luc_" + model_type
@@ -528,6 +539,12 @@ class DgrLucDataset24Medium(DgrLucDataset):
     patch_details = get_patch_details(model_type)
 
 
+class DgrLucDataset24Large(DgrLucDataset):
+    model_type = "24_large"
+    name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
+
+
 class DgrLucDatasetResNet(DgrLucDataset):
     model_type = "resnet"
     name = "dgr_luc_" + model_type
@@ -535,4 +552,4 @@ class DgrLucDatasetResNet(DgrLucDataset):
 
 
 if __name__ == "__main__":
-    setup("24_small")
+    setup("24_medium")
