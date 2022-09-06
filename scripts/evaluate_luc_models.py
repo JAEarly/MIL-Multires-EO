@@ -12,7 +12,8 @@ from dgr_luc_dataset import get_dataset_clz, get_model_type_list
 from dgr_luc_models import get_model_clz
 
 device = get_device()
-model_type_choices = get_model_type_list()
+all_models = get_model_type_list()
+model_type_choices = all_models + ['all']
 
 
 def parse_args():
@@ -24,7 +25,12 @@ def parse_args():
 
 
 def run_evaluation():
+    wandb.init()
+
     model_types, n_repeats = parse_args()
+
+    if model_types == ['all']:
+        model_types = all_models
 
     # print('Getting results for dataset {:s}'.format(dataset_name))
     print('Running for models: {:}'.format(model_types))
@@ -33,7 +39,7 @@ def run_evaluation():
     inst_results = np.empty((len(model_types), n_repeats, 3), dtype=object)
     seg_results = np.empty((len(model_types), n_repeats, 3), dtype=object)
     for model_idx, model_type in enumerate(model_types):
-        print('  Evaluating {:s}'.format(model_type))
+        print('Evaluating {:s}'.format(model_type))
 
         model_clz = get_model_clz(model_type)
         dataset_clz = get_dataset_clz(model_type)
@@ -41,10 +47,7 @@ def run_evaluation():
         config_path = "config/dgr_luc_config.yaml"
         config = parse_yaml_config(config_path)
         training_config = parse_training_config(config['training'], model_type)
-        wandb.init(
-            config=training_config,
-            reinit=True,
-        )
+        wandb.config.update(training_config, allow_val_change=True)
 
         if model_type == 'resnet':
             trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, dataloader_func=create_normal_dataloader)
