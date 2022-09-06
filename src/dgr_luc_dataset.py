@@ -321,13 +321,13 @@ class DgrLucDataset(MilDataset, ABC):
 
     @classmethod
     @property
+    @abstractmethod
     def patch_details(cls) -> PatchDetails:
-        return get_patch_details(cls.model_type)
+        pass
 
     @classmethod
     def load_dgr_bags(cls):
-        patch_details = get_patch_details(cls.model_type)
-        patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(patch_details.cell_size, patch_details.patch_size))
+        patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(cls.patch_details.cell_size, cls.patch_details.patch_size))
         coverage_df = cls.load_per_class_coverage()
         metadata_df = _load_metadata_df()
 
@@ -441,7 +441,8 @@ class DgrLucDataset(MilDataset, ABC):
         # mask_path = self.metadata_df['mask_path'][bag_idx]
         # mask_img = Image.open(mask_path)
         # return mask_img
-        raise NotImplementedError()
+        print('Not implemented!')
+        return None
 
     def create_reconstructed_image(self, bag_idx, add_grid=False):
         reconstruction = Image.new('RGBA', (self.patch_details.grid_size * self.patch_details.patch_size,
@@ -506,26 +507,31 @@ class DgrLucDataset(MilDataset, ABC):
 class DgrLucDataset16Small(DgrLucDataset):
     model_type = "16_small"
     name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
 
 
 class DgrLucDataset16Medium(DgrLucDataset):
     model_type = "16_medium"
     name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
 
 
 class DgrLucDataset24Small(DgrLucDataset):
     model_type = "24_small"
     name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
 
 
 class DgrLucDataset24Medium(DgrLucDataset):
     model_type = "24_medium"
     name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
 
 
 class DgrLucDatasetResNet(DgrLucDataset):
     model_type = "resnet"
     name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
 
 
 if __name__ == "__main__":
