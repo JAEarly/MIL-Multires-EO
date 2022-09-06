@@ -15,7 +15,6 @@ from bonfire.data.mil_dataset import MilDataset
 from bonfire.train.metrics import RegressionMetric, output_regression_results
 
 RAW_DATA_DIR = 'data/DeepGlobeLUC/raw'
-PATCH_DATA_DIR_FMT = 'data/DeepGlobeLUC/patch_{:d}_{:d}'
 PATCH_DATA_CSV_FMT = 'data/DeepGlobeLUC/patch_{:d}_{:d}_data.csv'
 RECONSTRUCTION_DATA_DIR_FMT = 'data/DeepGlobeLUC/reconstruction_{:d}_{:d}'
 TARGET_OUT_PATH = 'data/DeepGlobeLUC/targets.csv'
@@ -87,7 +86,7 @@ def get_dataset_clz(model_type):
 
 def setup(model_type):
     metadata_df = _load_metadata_df()
-    _extract_patches(metadata_df, model_type, force_extract=True)
+    _setup_patch_csv(metadata_df, model_type)
     # _calculate_dataset_normalisation(metadata_df)
     # _visualise_data(metadata_df)
     # _generate_per_class_coverage(metadata_df)
@@ -124,7 +123,7 @@ def _load_class_dict_df():
     return class_dict_df
 
 
-def _extract_patches(metadata_df, model_type, force_extract=False):
+def _setup_patch_csv(metadata_df, model_type):
     """
     Extract patches from the training images.
     :param metadata_df: Dataframe of image metadata.
@@ -137,41 +136,23 @@ def _extract_patches(metadata_df, model_type, force_extract=False):
     print(' {:d} patches per image'.format(patch_details.num_patches))
     print(' {:d} effective new size'.format(patch_details.effective_resolution))
 
-    # Create output directory or skip if output directory already exists (assumes previous extraction ran correctly)
-    patch_dir = PATCH_DATA_DIR_FMT.format(patch_details.cell_size, patch_details.patch_size)
-    if not os.path.exists(patch_dir):
-        os.makedirs(patch_dir)
-    else:
-        if not force_extract:
-            print(' Skipping...')
-            return
-
     all_patch_data = []
     # Loop over all the images
     for i in tqdm(range(len(metadata_df)), desc='Extracting patches', leave=False):
-        # Load original satellite and mask images
+        # Load mask data
         image_id = metadata_df['image_id'][i]
-        sat_path = metadata_df['sat_image_path'][i]
         mask_path = metadata_df['mask_path'][i]
-
-        # Resize to new target resolution
-        sat_img = Image.open(sat_path)
-        # sat_img.thumbnail((reconstructed_dim, reconstructed_dim))
-        sat_img_arr = np.array(sat_img)
-
         mask_img = Image.open(mask_path)
-        # mask_img.thumbnail((reconstructed_dim, reconstructed_dim))
         mask_img_arr = np.array(mask_img)
 
         # Iterate through each cell in the grid
-        n_x = int(sat_img_arr.shape[0]/patch_details.cell_size)
-        n_y = int(sat_img_arr.shape[1]/patch_details.cell_size)
+        n_x = int(mask_img_arr.shape[0]/patch_details.cell_size)
+        n_y = int(mask_img_arr.shape[1]/patch_details.cell_size)
         for i_x in range(n_x):
             for i_y in range(n_y):
                 # Extract patch from original image
                 p_x = i_x * patch_details.cell_size
                 p_y = i_y * patch_details.cell_size
-                patch_img_arr = sat_img_arr[p_x:p_x+patch_details.cell_size, p_y:p_y+patch_details.cell_size, :]
 
                 # Extract mask patch from original mask
                 patch_mask_arr = mask_img_arr[p_x:p_x+patch_details.cell_size, p_y:p_y+patch_details.cell_size, :]
@@ -184,16 +165,11 @@ def _extract_patches(metadata_df, model_type, force_extract=False):
                     patch_targets.append(percentage_cover)
                 assert abs(sum(patch_targets) - 1) < 1e-6
 
-                patch_img = Image.fromarray(patch_img_arr)
-                patch_img.thumbnail((patch_details.patch_size, patch_details.patch_size))
-                patch_path = "{:s}/{:d}_{:d}_{:d}.png".format(patch_dir, image_id, i_x, i_y)
-                patch_img.save(patch_path)
-
-                patch_data = [image_id, i_x, i_y, patch_path] + patch_targets
+                patch_data = [image_id, i_x, i_y] + patch_targets
                 all_patch_data.append(patch_data)
 
     # Save the patch dataframe
-    df_cols = ['image_id', 'i_x', 'i_y', 'path'] + [DgrLucDataset.target_to_name(i) for i in range(7)]
+    df_cols = ['image_id', 'i_x', 'i_y'] + [DgrLucDataset.target_to_name(i) for i in range(7)]
     patches_df = pd.DataFrame(data=all_patch_data, columns=df_cols)
     patches_df.to_csv(PATCH_DATA_CSV_FMT.format(patch_details.cell_size, patch_details.patch_size), index=False)
 
@@ -395,8 +371,8 @@ class DgrLucDataset(MilDataset, ABC):
 
     @classmethod
     def create_complete_dataset(cls):
-        bags, targets, instance_targets, bags_metadata = DgrLucDataset.load_dgr_bags()
-        return DgrLucDataset(bags, targets, instance_targets, bags_metadata)
+        bags, targets, instance_targets, bags_metadata = cls.load_dgr_bags()
+        return cls(bags, targets, instance_targets, bags_metadata)
 
     @classmethod
     def create_datasets(cls, random_state=12):
@@ -498,13 +474,29 @@ class DgrLucDataset(MilDataset, ABC):
         return reconstruction
 
     def __getitem__(self, bag_idx):
+        # Load original satellite and mask images
+        sat_path = self.metadata_df['sat_image_path'][bag_idx]
+
+        # Resize to new target resolution
+        sat_img = Image.open(sat_path)
+        sat_img.thumbnail((self.patch_details.effective_resolution, self.patch_details.effective_resolution))
+        sat_img_arr = np.array(sat_img)
+
+        # Iterate through each cell in the grid
         instances = []
-        bag = self.bags[bag_idx]
-        for patch_path in bag:
-            instance = Image.open(patch_path)
-            if self.transform is not None:
-                instance = self.transform(instance)
-            instances.append(instance)
+        n_x = int(sat_img_arr.shape[0]/self.patch_details.patch_size)
+        n_y = int(sat_img_arr.shape[1]/self.patch_details.patch_size)
+        for i_x in range(n_x):
+            for i_y in range(n_y):
+                # Extract patch from original image
+                p_x = i_x * self.patch_details.patch_size
+                p_y = i_y * self.patch_details.patch_size
+                instance = sat_img_arr[p_x:p_x+self.patch_details.patch_size,
+                                       p_y:p_y+self.patch_details.patch_size,
+                                       :]
+                if self.transform is not None:
+                    instance = self.transform(instance)
+                instances.append(instance)
         instances = torch.stack(instances)
         target = self.targets[bag_idx]
         instance_targets = self.instance_targets[bag_idx]
