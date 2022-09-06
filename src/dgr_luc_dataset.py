@@ -130,7 +130,7 @@ def _setup_patch_csv(metadata_df, model_type):
     """
     patch_details = get_patch_details(model_type)
 
-    print('Extracting grid patches')
+    print('Setting up patch csv')
     print(' Cell size: {:d}'.format(patch_details.cell_size))
     print(' Patch size: {:d}'.format(patch_details.patch_size))
     print(' {:d} patches per image'.format(patch_details.num_patches))
@@ -138,7 +138,7 @@ def _setup_patch_csv(metadata_df, model_type):
 
     all_patch_data = []
     # Loop over all the images
-    for i in tqdm(range(len(metadata_df)), desc='Extracting patches', leave=False):
+    for i in tqdm(range(len(metadata_df)), desc='Calculating patch targets', leave=False):
         # Load mask data
         image_id = metadata_df['image_id'][i]
         mask_path = metadata_df['mask_path'][i]
@@ -308,7 +308,6 @@ class DgrLucDataset(MilDataset, ABC):
         transforms.ToTensor(),
         transforms.Normalize(dataset_mean, dataset_std)
     ])
-    metadata_df = _load_metadata_df()
 
     def __init__(self, bags, targets, instance_targets, bags_metadata):
         super().__init__(bags, targets, instance_targets, bags_metadata)
@@ -330,18 +329,18 @@ class DgrLucDataset(MilDataset, ABC):
         patch_details = get_patch_details(cls.model_type)
         patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(patch_details.cell_size, patch_details.patch_size))
         coverage_df = cls.load_per_class_coverage()
+        metadata_df = _load_metadata_df()
 
-        bags = []
+        # Parse instance targets
         instance_targets = []
         for image_id in coverage_df['image_id']:
             image_patch_data = patches_df.loc[patches_df['image_id'] == image_id]
-            bag = image_patch_data['path'].tolist()
             bag_instance_targets = image_patch_data[cls.get_clz_names()].to_numpy()
-            bags.append(bag)
             instance_targets.append(bag_instance_targets)
 
+        bags = metadata_df['sat_image_path'].to_numpy()
+        bags_metadata = np.asarray([{'id': id_} for id_ in metadata_df['image_id'].tolist()])
         targets = coverage_df[cls.get_clz_names()].to_numpy()
-        bags_metadata = np.asarray([{'id': id_} for id_ in coverage_df['image_id'].tolist()])
 
         return bags, targets, instance_targets, bags_metadata
 
@@ -439,9 +438,10 @@ class DgrLucDataset(MilDataset, ABC):
         print('  Max: {:d}'.format(max(bag_sizes)))
 
     def get_original_mask_img(self, bag_idx):
-        mask_path = self.metadata_df['mask_path'][bag_idx]
-        mask_img = Image.open(mask_path)
-        return mask_img
+        # mask_path = self.metadata_df['mask_path'][bag_idx]
+        # mask_img = Image.open(mask_path)
+        # return mask_img
+        raise NotImplementedError()
 
     def create_reconstructed_image(self, bag_idx, add_grid=False):
         reconstruction = Image.new('RGBA', (self.patch_details.grid_size * self.patch_details.patch_size,
@@ -475,7 +475,7 @@ class DgrLucDataset(MilDataset, ABC):
 
     def __getitem__(self, bag_idx):
         # Load original satellite and mask images
-        sat_path = self.metadata_df['sat_image_path'][bag_idx]
+        sat_path = self.bags[bag_idx]
 
         # Resize to new target resolution
         sat_img = Image.open(sat_path)
