@@ -3,42 +3,42 @@ training:
     lr: 1.e-4
     wd: 1.e-6
     dropout: 0.4
-    n_epochs: 25
+    n_epochs: 30
     patience: 5
     patience_interval: 1
   16_small:
     lr: 1.e-4
-    wd: 1.e-5
-    dropout: 0.45
+    wd: 1.e-6
+    dropout: 0.3
     agg_func: mean
   16_medium:
-    lr: 1.e-4
+    lr: 5.e-5
     wd: 1.e-5
-    dropout: 0.45
+    dropout: 0.1
     agg_func: mean
   16_large:
-    lr: 1.e-4
+    lr: 5.e-5
     wd: 1.e-5
-    dropout: 0.45
+    dropout: 0.35
     agg_func: mean
   24_small:
     lr: 1.e-4
     wd: 1.e-5
-    dropout: 0.45
+    dropout: 0
     agg_func: mean
   24_medium:
     lr: 1.e-4
-    wd: 1.e-5
-    dropout: 0.45
+    wd: 1.e-4
+    dropout: 0.3
     agg_func: mean
   24_large:
-    lr: 1.e-4
+    lr: 5.e-5
     wd: 1.e-5
-    dropout: 0.45
+    dropout: 0
     agg_func: mean
   resnet:
-    lr: 5.e-4
-    wd: 1.e-2
+    lr: 0.001
+    wd: 0.1
     dropout: 0
 tuning:
   default:
@@ -46,7 +46,7 @@ tuning:
     wd: [1.e-6, 1.e-5, 1.e-4, 1.e-3, 1.e-2]
     dropout: [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
   InstanceSpaceNN:
-    agg_func: [mean, max, sum]
+    agg_func: [mean]
   DgrResNet18:
     lr: [1.e-8, 1.e-7, 1.e-6, 5.e-6, 1.e-5, 5.e-5, 1.e-4, 5.e-4, 1.e-3]
     wd: [1.e-7, 1.e-6, 1.e-5, 1.e-4, 1.e-3, 1.e-2, 2.e-2, 5.e-2, 1.e-1]

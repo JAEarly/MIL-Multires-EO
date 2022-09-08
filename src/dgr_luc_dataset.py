@@ -161,7 +161,7 @@ def _setup_patch_csv(metadata_df, model_type):
 
                 # Extract mask patch from original mask
                 patch_mask_arr = mask_img_arr[p_x:p_x+patch_details.cell_size, p_y:p_y+patch_details.cell_size, :]
-                patch_mask_binary = _make_binary_mask(patch_mask_arr)
+                patch_mask_binary = make_binary_mask(patch_mask_arr)
 
                 patch_targets = []
                 for target in range(7):
@@ -195,7 +195,8 @@ def _calculate_dataset_normalisation(metadata_df):
     print('  Std:', arrs_std)
 
 
-def _make_binary_mask(mask):
+def make_binary_mask(mask):
+    # TODO technically this is a thresholded mask; binary is a bit misleading.
     binary_mask = torch.zeros_like(torch.as_tensor(mask))
     binary_mask[mask > 128] = 1
     return binary_mask
@@ -221,7 +222,7 @@ def _visualise_data(metadata_df, n_to_show=5):
         sat_img = Image.open(sat_path)
         mask_img = Image.open(mask_path)
         mask_arr = np.array(mask_img)
-        mask_binary = _make_binary_mask(mask_arr)
+        mask_binary = make_binary_mask(mask_arr)
 
         fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(10, 10))
         axes[0][0].imshow(sat_img, vmin=0, vmax=255)
@@ -250,7 +251,7 @@ def _generate_per_class_coverage(metadata_df):
         mask_path = metadata_df['mask_path'][i]
         mask_img = Image.open(mask_path)
         mask_arr = np.array(mask_img)
-        mask_binary = _make_binary_mask(mask_arr)
+        mask_binary = make_binary_mask(mask_arr)
 
         s = 0
         for target in range(7):
@@ -314,8 +315,9 @@ class DgrLucDataset(MilDataset, ABC):
         transforms.Normalize(dataset_mean, dataset_std)
     ])
 
-    def __init__(self, bags, targets, instance_targets, bags_metadata):
+    def __init__(self, bags, targets, instance_targets, bags_metadata, mask_paths):
         super().__init__(bags, targets, instance_targets, bags_metadata)
+        self.mask_paths = mask_paths
         self.transform = self.basic_transform
 
     @classmethod
@@ -346,8 +348,9 @@ class DgrLucDataset(MilDataset, ABC):
         bags = metadata_df['sat_image_path'].to_numpy()
         bags_metadata = np.asarray([{'id': id_} for id_ in metadata_df['image_id'].tolist()])
         targets = coverage_df[cls.get_clz_names()].to_numpy()
+        mask_paths = metadata_df['mask_path'].to_numpy()
 
-        return bags, targets, instance_targets, bags_metadata
+        return bags, targets, instance_targets, bags_metadata, mask_paths
 
     @classmethod
     def target_to_rgb(cls, target):
@@ -357,12 +360,12 @@ class DgrLucDataset(MilDataset, ABC):
 
     @classmethod
     def rgb_to_target(cls, r, g, b):
-        r = cls.class_dict_df.loc[(cls.class_dict_df['r'] == r) &
-                                  (cls.class_dict_df['g'] == g) &
-                                  (cls.class_dict_df['b'] == b)]
-        target = r['target'].values.tolist()
+        row = cls.class_dict_df.loc[(cls.class_dict_df['r'] == r) &
+                                    (cls.class_dict_df['g'] == g) &
+                                    (cls.class_dict_df['b'] == b)]
+        target = row['target'].values.tolist()
         if len(target) != 1:
-            raise ValueError("Invalid output for rgb to target: {:}".format(target))
+            raise ValueError("Invalid output for rgb to target: {:}. RGB: {:}".format(target, (r, g, b)))
         return target[0]
 
     @classmethod
@@ -375,12 +378,12 @@ class DgrLucDataset(MilDataset, ABC):
 
     @classmethod
     def create_complete_dataset(cls):
-        bags, targets, instance_targets, bags_metadata = cls.load_dgr_bags()
-        return cls(bags, targets, instance_targets, bags_metadata)
+        bags, targets, instance_targets, bags_metadata, mask_paths = cls.load_dgr_bags()
+        return cls(bags, targets, instance_targets, bags_metadata, mask_paths)
 
     @classmethod
     def create_datasets(cls, random_state=12):
-        bags, targets, instance_targets, bags_metadata = cls.load_dgr_bags()
+        bags, targets, instance_targets, bags_metadata, mask_paths = cls.load_dgr_bags()
 
         for train_split, val_split, test_split in cls.get_dataset_splits(bags, targets, random_state=random_state):
             # Setup bags, targets, and metadata for splits
@@ -392,10 +395,11 @@ class DgrLucDataset(MilDataset, ABC):
                                            [instance_targets[i] for i in val_split], \
                                            [instance_targets[i] for i in test_split]
             train_md, val_md, test_md = bags_metadata[train_split], bags_metadata[val_split], bags_metadata[test_split]
+            train_mp, val_mp, test_mp = mask_paths[train_split], mask_paths[val_split], mask_paths[test_split]
 
-            train_dataset = cls(train_bags, train_targets, train_its, train_md)
-            val_dataset = cls(val_bags, val_targets, val_its, val_md)
-            test_dataset = cls(test_bags, test_targets, test_its, test_md)
+            train_dataset = cls(train_bags, train_targets, train_its, train_md, train_mp)
+            val_dataset = cls(val_bags, val_targets, val_its, val_md, val_mp)
+            test_dataset = cls(test_bags, test_targets, test_its, test_md, test_mp)
 
             yield train_dataset, val_dataset, test_dataset
 
@@ -506,7 +510,8 @@ class DgrLucDataset(MilDataset, ABC):
         instances = torch.stack(instances)
         target = self.targets[bag_idx]
         instance_targets = self.instance_targets[bag_idx]
-        return instances, target, instance_targets
+        mask_path = self.mask_paths[bag_idx]
+        return instances, target, instance_targets, mask_path
 
 
 class DgrLucDataset16Small(DgrLucDataset):

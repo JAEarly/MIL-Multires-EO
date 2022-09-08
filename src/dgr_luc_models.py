@@ -31,7 +31,9 @@ def get_n_params(model_type):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-DGR_D_CONV_OUT = 1200
+DGR_D_CONV_OUT_SMALL = 1200
+DGR_D_CONV_OUT_MEDIUM = 6912
+DGR_D_CONV_OUT_LARGE = 5600
 DGR_D_ENC = 128
 DGR_DS_ENC_HID = (512,)
 DGR_DS_AGG_HID = (64,)
@@ -44,7 +46,7 @@ class DgrEncoderSmall(nn.Module):
         conv1 = mod.ConvBlock(c_in=3, c_out=36, kernel_size=4, stride=1, padding=0)
         conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
         self.fe = nn.Sequential(conv1, conv2)
-        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT, DGR_DS_ENC_HID, DGR_D_ENC,
+        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT_SMALL, DGR_DS_ENC_HID, DGR_D_ENC,
                                                 final_activation_func=None, dropout=dropout)
 
     def forward(self, instances):
@@ -60,9 +62,8 @@ class DgrEncoderMedium(nn.Module):
         super().__init__()
         conv1 = mod.ConvBlock(c_in=3, c_out=36, kernel_size=4, stride=1, padding=0)
         conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
-        conv3 = mod.ConvBlock(c_in=48, c_out=48, kernel_size=3, stride=1, padding=0)
-        self.fe = nn.Sequential(conv1, conv2, conv3)
-        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT, DGR_DS_ENC_HID, DGR_D_ENC,
+        self.fe = nn.Sequential(conv1, conv2)
+        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT_MEDIUM, DGR_DS_ENC_HID, DGR_D_ENC,
                                                 final_activation_func=None, dropout=dropout)
 
     def forward(self, instances):
@@ -78,10 +79,9 @@ class DgrEncoderLarge(nn.Module):
         super().__init__()
         conv1 = mod.ConvBlock(c_in=3, c_out=36, kernel_size=4, stride=1, padding=0)
         conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
-        conv3 = mod.ConvBlock(c_in=48, c_out=48, kernel_size=3, stride=1, padding=0)
-        conv4 = mod.ConvBlock(c_in=48, c_out=75, kernel_size=3, stride=1, padding=0)
-        self.fe = nn.Sequential(conv1, conv2, conv3, conv4)
-        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT, DGR_DS_ENC_HID, DGR_D_ENC,
+        conv3 = mod.ConvBlock(c_in=48, c_out=56, kernel_size=3, stride=1, padding=0)
+        self.fe = nn.Sequential(conv1, conv2, conv3)
+        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT_LARGE, DGR_DS_ENC_HID, DGR_D_ENC,
                                                 final_activation_func=None, dropout=dropout)
 
     def forward(self, instances):

@@ -6,8 +6,6 @@ from bonfire.train.trainer import create_normal_dataloader
 from bonfire.tune import create_tuner_from_config
 from bonfire.util import get_device
 from bonfire.util.yaml_util import parse_yaml_config
-import dgr_luc_dataset
-import dgr_luc_models
 from dgr_luc_dataset import get_dataset_clz, get_model_type_list
 from dgr_luc_models import get_model_clz
 
@@ -18,7 +16,7 @@ all_models = get_model_type_list()
 def parse_args():
     parser = argparse.ArgumentParser(description='MIL LUC tuning script.')
     parser.add_argument('model', choices=all_models, help="Type of model to tune.")
-    parser.add_argument('-n', '--n_trials', default=50, type=int, help='The number of trials to run when tuning.')
+    parser.add_argument('-n', '--n_trials', default=40, type=int, help='The number of trials to run when tuning.')
     parser.add_argument('-t', '--track_emissions', action='store_true',
                         help='Whether or not to track emissions using CodeCarbon.')
     args = parser.parse_args()
