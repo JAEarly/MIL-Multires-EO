@@ -34,10 +34,12 @@ def run_training():
     model_clz = get_model_clz(model_type)
     dataset_clz = get_dataset_clz(model_type)
 
+    project_name = "Train_MIL_LUC"
     if model_type == 'resnet':
-        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, dataloader_func=create_normal_dataloader)
+        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, project_name=project_name,
+                                           dataloader_func=create_normal_dataloader,)
     else:
-        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz)
+        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, project_name=project_name)
 
     dataset_name = dataset_clz.name
 
