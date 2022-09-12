@@ -22,14 +22,15 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Builtin PyTorch MIL training script.')
     parser.add_argument('model_types', choices=model_type_choices, nargs='+', help='The models to evaluate.')
     parser.add_argument('-r', '--n_repeats', default=1, type=int, help='The number of models to evaluate (>=1).')
+    parser.add_argument('-s', '--evaluate_segmentation', action='store_true', help='If to evaluate segmentation.')
     args = parser.parse_args()
-    return args.model_types, args.n_repeats
+    return args.model_types, args.n_repeats, args.evaluate_segmentation
 
 
 def run_evaluation():
     wandb.init()
 
-    model_types, n_repeats = parse_args()
+    model_types, n_repeats, evaluate_segmentation = parse_args()
 
     if model_types == ['all']:
         model_types = all_models
@@ -56,7 +57,8 @@ def run_evaluation():
             trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, dataloader_func=create_normal_dataloader)
         else:
             trainer = create_trainer_from_clzs(device, model_clz, dataset_clz)
-        model_results = evaluate(model_type, n_repeats, trainer)
+
+        model_results = evaluate(model_type, n_repeats, trainer, evaluate_segmentation=evaluate_segmentation)
         model_bag_results, model_inst_results, model_grid_seg_results, model_orig_seg_results = model_results
         bag_results[model_idx, :, :] = model_bag_results
         inst_results[model_idx, :, :] = model_inst_results
@@ -72,7 +74,7 @@ def run_evaluation():
     output_results(model_types, orig_seg_results, sort=False)
 
 
-def evaluate(model_type, n_repeats, trainer, random_state=5):
+def evaluate(model_type, n_repeats, trainer, random_state=5, evaluate_segmentation=False):
     bag_results_arr = np.empty((n_repeats, 3), dtype=object)
     inst_results_arr = np.empty((n_repeats, 3), dtype=object)
     grid_seg_results_arr = np.empty((n_repeats, 3), dtype=object)
@@ -88,7 +90,8 @@ def evaluate(model_type, n_repeats, trainer, random_state=5):
         model = load_model(device, trainer.dataset_clz.name, trainer.model_clz, modifier=r)
 
         results_list = eval_complete(model_type, trainer.metric_clz, model,
-                                     train_dataloader, val_dataloader, test_dataloader, verbose=False)
+                                     train_dataloader, val_dataloader, test_dataloader,
+                                     verbose=False, evaluate_segmentation=evaluate_segmentation)
 
         train_bag_res, train_inst_res, val_bag_res, val_inst_res, test_bag_res, test_inst_res = results_list
         bag_results_arr[r, :] = [train_bag_res[0], val_bag_res[0], test_bag_res[0]]
@@ -108,14 +111,18 @@ def evaluate(model_type, n_repeats, trainer, random_state=5):
     return bag_results_arr, inst_results_arr, grid_seg_results_arr, orig_seg_results_arr
 
 
-def eval_complete(model_type, bag_metric, model, train_dataloader, val_dataloader, test_dataloader, verbose=False):
-    train_bag_res, train_inst_res = eval_model(model_type, bag_metric, model, train_dataloader, verbose=verbose)
-    val_bag_res, val_inst_res = eval_model(model_type, bag_metric, model, val_dataloader, verbose=verbose)
-    test_bag_res, test_inst_res = eval_model(model_type, bag_metric, model, test_dataloader, verbose=verbose)
+def eval_complete(model_type, bag_metric, model, train_dataloader, val_dataloader, test_dataloader,
+                  verbose=False, evaluate_segmentation=False):
+    train_bag_res, train_inst_res = eval_model(model_type, bag_metric, model, train_dataloader,
+                                               verbose=verbose, evaluate_segmentation=evaluate_segmentation)
+    val_bag_res, val_inst_res = eval_model(model_type, bag_metric, model, val_dataloader,
+                                           verbose=verbose, evaluate_segmentation=evaluate_segmentation)
+    test_bag_res, test_inst_res = eval_model(model_type, bag_metric, model, test_dataloader,
+                                             verbose=verbose, evaluate_segmentation=evaluate_segmentation)
     return train_bag_res, train_inst_res, val_bag_res, val_inst_res, test_bag_res, test_inst_res
 
 
-def eval_model(model_type, bag_metric, model, dataloader, verbose=False):
+def eval_model(model_type, bag_metric, model, dataloader, verbose=False, evaluate_segmentation=False):
     # Iterate through data loader and gather preds and targets
     all_preds = []
     all_targets = []
@@ -156,10 +163,14 @@ def eval_model(model_type, bag_metric, model, dataloader, verbose=False):
         all_instance_targets = torch.cat(all_instance_targets)
         patch_details = get_patch_details(model_type)
         instance_main_results = bag_metric.calculate_metric(all_instance_preds, all_instance_targets, labels)
-        iou_grid_results = evaluate_iou_grid(all_instance_preds, all_instance_targets, labels, patch_details.grid_size)
-        iou_orig_results = evaluate_iou_orig(all_instance_preds, labels, patch_details.grid_size,
-                                             patch_details.cell_size, all_mask_paths)
-        instance_results = [instance_main_results, iou_grid_results, iou_orig_results]
+        if evaluate_segmentation:
+            iou_grid_results = evaluate_iou_grid(all_instance_preds, all_instance_targets, labels,
+                                                 patch_details.grid_size)
+            iou_orig_results = evaluate_iou_orig(all_instance_preds, labels, patch_details.grid_size,
+                                                 patch_details.cell_size, all_mask_paths)
+            instance_results = [instance_main_results, iou_grid_results, iou_orig_results]
+        else:
+            instance_results = [instance_main_results, IoUMetric(torch.nan, None), IoUMetric(torch.nan, None)]
         if verbose:
             for instance_result in instance_results:
                 instance_result.out()
