@@ -2,7 +2,6 @@
 /data/
 /wandb/
 /out/tune/
-/models/
 /iridis/
 __pycache__/
 latest_job.sh
