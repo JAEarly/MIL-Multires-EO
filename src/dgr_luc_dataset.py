@@ -56,7 +56,13 @@ class PatchDetails:
 
 
 def get_patch_details(model_type):
-    if model_type == "16_small":
+    if model_type == "8_small":
+        return PatchDetails(8, 28)
+    elif model_type == "8_medium":
+        return PatchDetails(8, 56)
+    elif model_type == "8_large":
+        return PatchDetails(8, 102)
+    elif model_type == "16_small":
         return PatchDetails(16, 28)
     elif model_type == "16_medium":
         return PatchDetails(16, 56)
@@ -75,7 +81,9 @@ def get_patch_details(model_type):
 
 
 def get_dataset_list():
-    return [DgrLucDatasetResNet, DgrLucDataset16Small, DgrLucDataset16Medium, DgrLucDataset16Large,
+    return [DgrLucDatasetResNet,
+            DgrLucDataset8Small, DgrLucDataset8Medium, DgrLucDataset8Large,
+            DgrLucDataset16Small, DgrLucDataset16Medium, DgrLucDataset16Large,
             DgrLucDataset24Small, DgrLucDataset24Medium, DgrLucDataset24Large]
 
 
@@ -514,6 +522,24 @@ class DgrLucDataset(MilDataset, ABC):
         return instances, target, instance_targets, mask_path
 
 
+class DgrLucDataset8Small(DgrLucDataset):
+    model_type = "8_small"
+    name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
+
+
+class DgrLucDataset8Medium(DgrLucDataset):
+    model_type = "8_medium"
+    name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
+
+
+class DgrLucDataset8Large(DgrLucDataset):
+    model_type = "8_large"
+    name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
+
+
 class DgrLucDataset16Small(DgrLucDataset):
     model_type = "16_small"
     name = "dgr_luc_" + model_type
@@ -557,4 +583,4 @@ class DgrLucDatasetResNet(DgrLucDataset):
 
 
 if __name__ == "__main__":
-    setup("24_medium")
+    setup("8_small")

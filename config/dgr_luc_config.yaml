@@ -6,6 +6,21 @@ training:
     n_epochs: 30
     patience: 5
     patience_interval: 1
+  8_small:
+    lr: 5.e-4
+    wd: 1.e-6
+    dropout: 0.1
+    agg_func: mean
+  8_medium:
+    lr: 1.e-4
+    wd: 1.e-6
+    dropout: 0.05
+    agg_func: mean
+  8_large:
+    lr: 1.e-4
+    wd: 1.e-5
+    dropout: 0.35
+    agg_func: mean
   16_small:
     lr: 5.e-4
     wd: 1.e-6
