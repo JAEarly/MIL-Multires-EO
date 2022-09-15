@@ -8,14 +8,15 @@ from matplotlib import pyplot as plt
 
 def run():
     file = "results/raw_results.txt"
-    model_names = ['resnet', '16_small', '16_medium', '16_large', '24_small', '24_medium', '24_large']
+    model_names = ['resnet', '8_small', '8_medium', '8_large', '16_small', '16_medium', '16_large',
+                   '24_small', '24_medium', '24_large']
     with open(file, newline='') as csv_file:
         reader = csv.reader(csv_file, delimiter='|')
         split = []
         split_idx = 0
         for row in reader:
             split.append(row)
-            if len(split) == 18:
+            if len(split) == 24:
                 if split_idx == 0:
                     scene_rmse = parse_split(split, -3)
                     scene_mae = parse_split(split, -2)
@@ -70,34 +71,34 @@ def run():
     print(table.draw())
     print(latextable.draw_latex(table, use_booktabs=True))
 
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 5))
-    print(means)
-    axes[0][0].bar([0, 1, 2, 4, 5, 6], [m[0] for m in means][1:], color=['r', 'g', 'b', 'r', 'g', 'b'])
-    axes[0][0].set_xticks([1, 5])
-    axes[0][0].set_xticklabels(['Grid Size = 16', 'Grid Size = 24'])
-    axes[0][0].set_ylabel('Scene RMSE')
-    axes[0][0].set_ylim(0, 0.12)
-
-    axes[0][1].bar([0, 1, 2, 4, 5, 6], [m[1] for m in means][1:])
-    axes[0][1].set_xticks([1, 5])
-    axes[0][1].set_xticklabels(['Grid Size = 16', 'Grid Size = 24'])
-    axes[0][1].set_ylabel('Scene MAE')
-    axes[0][1].set_ylim(0, 0.12)
-
-    axes[1][0].bar([0, 1, 2, 4, 5, 6], [m[2] for m in means][1:])
-    axes[1][0].set_xticks([1, 5])
-    axes[1][0].set_xticklabels(['Grid Size = 16', 'Grid Size = 24'])
-    axes[1][0].set_ylabel('Patch mIoU (Grid)')
-    axes[1][0].set_ylim(0, 0.45)
-
-    axes[1][1].bar([0, 1, 2, 4, 5, 6], [m[3] for m in means][1:])
-    axes[1][1].set_xticks([1, 5])
-    axes[1][1].set_xticklabels(['Grid Size = 16', 'Grid Size = 24'])
-    axes[1][1].set_ylabel('Patch mIoU (Original)')
-    axes[1][1].set_ylim(0, 0.45)
-
-    plt.tight_layout()
-    plt.show()
+    # fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(8, 5))
+    # print(means)
+    # axes[0][0].bar([0, 1, 2, 4, 5, 6], [m[0] for m in means][1:], color=['r', 'g', 'b', 'r', 'g', 'b'])
+    # axes[0][0].set_xticks([1, 5])
+    # axes[0][0].set_xticklabels(['Grid Size = 16', 'Grid Size = 24'])
+    # axes[0][0].set_ylabel('Scene RMSE')
+    # axes[0][0].set_ylim(0, 0.12)
+    #
+    # axes[0][1].bar([0, 1, 2, 4, 5, 6], [m[1] for m in means][1:])
+    # axes[0][1].set_xticks([1, 5])
+    # axes[0][1].set_xticklabels(['Grid Size = 16', 'Grid Size = 24'])
+    # axes[0][1].set_ylabel('Scene MAE')
+    # axes[0][1].set_ylim(0, 0.12)
+    #
+    # axes[1][0].bar([0, 1, 2, 4, 5, 6], [m[2] for m in means][1:])
+    # axes[1][0].set_xticks([1, 5])
+    # axes[1][0].set_xticklabels(['Grid Size = 16', 'Grid Size = 24'])
+    # axes[1][0].set_ylabel('Patch mIoU (Grid)')
+    # axes[1][0].set_ylim(0, 0.45)
+    #
+    # axes[1][1].bar([0, 1, 2, 4, 5, 6], [m[3] for m in means][1:])
+    # axes[1][1].set_xticks([1, 5])
+    # axes[1][1].set_xticklabels(['Grid Size = 16', 'Grid Size = 24'])
+    # axes[1][1].set_ylabel('Patch mIoU (Original)')
+    # axes[1][1].set_ylim(0, 0.45)
+    #
+    # plt.tight_layout()
+    # plt.show()
 
 
 def parse_split(split, idx):
