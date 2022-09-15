@@ -5,9 +5,9 @@ import wandb
 from bonfire.util import get_device
 from bonfire.util import load_model_from_path
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-from dgr_luc_dataset import DgrLucDataset
+from dgr_luc_dataset import get_dataset_clz, DgrLucDataset
 from dgr_luc_interpretability import MilLucInterpretabilityStudy
-from dgr_luc_models import DgrInstanceSpaceNN
+from dgr_luc_models import get_model_clz
 
 device = get_device()
 
@@ -22,26 +22,30 @@ def parse_args():
 def run():
     task = parse_args()
 
-    model_clz = DgrInstanceSpaceNN
-    model_name = model_clz.name
-    model_path = "models/dgr_luc/InstanceSpaceNN/InstanceSpaceNN_0.pkl"
+    model_type = "16_medium"
+    model_idx = 4
+    model_clz = get_model_clz(model_type)
+    dataset_clz = get_dataset_clz(model_type)
+
+    model_path = "models/dgr_luc_{:s}/InstanceSpaceNN/InstanceSpaceNN_{:d}.pkl".format(model_type, model_idx)
 
     # Parse wandb config and get training config for this model
     config_path = "config/dgr_luc_config.yaml"
     config = parse_yaml_config(config_path)
-    training_config = parse_training_config(config['training'], model_name)
+    training_config = parse_training_config(config['training'], model_type)
     wandb.init(
         config=training_config,
     )
 
-    complete_dataset = DgrLucDataset.create_complete_dataset()
+    complete_dataset = dataset_clz.create_complete_dataset()
     model = load_model_from_path(device, model_clz, model_path)
     study = MilLucInterpretabilityStudy(device, complete_dataset, model)
 
     if task == 'reconstruct':
         study.create_reconstructions()
     elif task == 'interpret':
-        study.create_interpretation_from_id(739760)
+        study.sample_interpretations()
+        # study.create_interpretation_from_id(739760)
     else:
         raise NotImplementedError('Task not implemented: {:s}.'.format(task))
 

@@ -454,42 +454,15 @@ class DgrLucDataset(MilDataset, ABC):
         print('  Avg: {:.1f}'.format(np.mean(bag_sizes)))
         print('  Max: {:d}'.format(max(bag_sizes)))
 
-    def get_original_mask_img(self, bag_idx):
-        # mask_path = self.metadata_df['mask_path'][bag_idx]
-        # mask_img = Image.open(mask_path)
-        # return mask_img
-        print('Not implemented!')
-        return None
+    def get_mask_img(self, bag_idx):
+        mask_path = self.mask_paths[bag_idx]
+        mask_img = Image.open(mask_path)
+        return mask_img
 
-    def create_reconstructed_image(self, bag_idx, add_grid=False):
-        reconstruction = Image.new('RGBA', (self.patch_details.grid_size * self.patch_details.patch_size,
-                                            self.patch_details.grid_size * self.patch_details.patch_size))
-        bag = self.bags[bag_idx]
-        for idx, patch_path in enumerate(bag):
-            row_idx = idx // self.patch_details.grid_size
-            col_idx = idx % self.patch_details.grid_size
-            patch = Image.open(patch_path).convert('RGBA')
-
-            if add_grid:
-                # Create border arr that is the same size as the patch
-                border_arr = np.zeros((self.patch_details.patch_size, self.patch_details.patch_size, 4))
-                # Set all pixels to white (alpha remains 0)
-                border_arr[:, :, :3] = 255
-                # Set alpha for border pixels
-                grid_alpha = 0.6 * 255
-                border_arr[0, :, 3] = grid_alpha
-                border_arr[-1, :, 3] = grid_alpha
-                border_arr[:, 0, 3] = grid_alpha
-                border_arr[:, -1, 3] = grid_alpha
-                # Create border image and paste on top of patch
-                border_img = Image.fromarray(np.uint8(border_arr), mode='RGBA')
-                patch.paste(border_img, (0, 0), border_img)
-            
-            # Paste patch into reconstruction
-            reconstruction.paste(im=patch, box=(col_idx * self.patch_details.patch_size,
-                                                row_idx * self.patch_details.patch_size))
-
-        return reconstruction
+    def get_sat_img(self, bag_idx):
+        sat_path = self.bags[bag_idx]
+        sat_img = Image.open(sat_path)
+        return sat_img
 
     def __getitem__(self, bag_idx):
         # Load original satellite and mask images
