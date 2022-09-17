@@ -22,8 +22,15 @@ def parse_args():
 def run():
     task = parse_args()
 
-    model_type = "16_medium"
-    model_idx = 4
+    model_type = "8_large"
+    if model_type == '24_medium':
+        model_idx = 2
+    elif model_type == '16_medium':
+        model_idx = 4
+    elif model_type == '8_large':
+        model_idx = 2
+    else:
+        raise NotImplementedError
     model_clz = get_model_clz(model_type)
     dataset_clz = get_dataset_clz(model_type)
 

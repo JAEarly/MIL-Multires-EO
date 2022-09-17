@@ -1,16 +1,21 @@
 import os
 import random
+from collections import Counter
 
 import matplotlib as mpl
+import matplotlib.pylab as plt
 import numpy as np
 import torch
 from PIL import Image
 from matplotlib import pyplot as plt
+from matplotlib import rc
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from tqdm import tqdm
 
 from dgr_luc_dataset import RECONSTRUCTION_DATA_DIR_FMT
-from collections import Counter
+
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+rc('text', usetex=True)
 
 
 class MilLucInterpretabilityStudy:
@@ -53,6 +58,10 @@ class MilLucInterpretabilityStudy:
                 continue
 
     def create_interpretation(self, idx, bag, target, bag_id):
+        save_path = "out/interpretability/{:}/{:}_interpretation.png".format(self.dataset.model_type, bag_id)
+        if os.path.exists(save_path):
+            return
+
         bag_prediction, instance_predictions = self.model.forward_verbose(bag)
         # print('  Pred:', ['{:.3f}'.format(p) for p in bag_prediction])
         # print('Target:', ['{:.3f}'.format(t) for t in target])
@@ -72,9 +81,6 @@ class MilLucInterpretabilityStudy:
 
         clz_counts = Counter(pred_clz_mask.flatten().tolist()).most_common()
         clz_order = [int(c[0]) for c in clz_counts]
-
-        print('CHANGE TITLES TO LATEX FONT')
-        exit()
 
         def format_axis(ax, title=None):
             ax.set_axis_off()
@@ -110,7 +116,7 @@ class MilLucInterpretabilityStudy:
 
         plt.tight_layout()
         # plt.show()
-        fig.savefig("out/interpretability/{:}_interpretation.png".format(bag_id), dpi=400)
+        fig.savefig(save_path, dpi=300)
         plt.close(fig)
 
     def _create_instance_mask(self, instance_predictions, clz):
