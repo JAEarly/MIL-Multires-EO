@@ -14,7 +14,7 @@ device = get_device()
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MIL LUC training script.')
-    parser.add_argument('task', choices=['reconstruct', 'interpret'], help='The task to perform.')
+    parser.add_argument('task', choices=['reconstruct', 'interpret', 'specific'], help='The task to perform.')
     args = parser.parse_args()
     return args.task
 
@@ -52,7 +52,8 @@ def run():
         study.create_reconstructions()
     elif task == 'interpret':
         study.sample_interpretations()
-        # study.create_interpretation_from_id(739760)
+    elif task == 'specific':
+        study.create_interpretation_from_id(454655)
     else:
         raise NotImplementedError('Task not implemented: {:s}.'.format(task))
 

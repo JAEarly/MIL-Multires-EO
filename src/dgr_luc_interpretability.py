@@ -86,7 +86,7 @@ class MilLucInterpretabilityStudy:
             ax.set_axis_off()
             ax.set_aspect('equal')
             if title is not None:
-                ax.set_title(title)
+                ax.set_title(title, fontsize=16)
 
         fig, axes = plt.subplots(nrows=2, ncols=4, figsize=(12, 5))
         axes[0][0].imshow(sat_img)
@@ -110,13 +110,14 @@ class MilLucInterpretabilityStudy:
                 cax = divider.append_axes('right', size='5%', pad=0.05)
                 cbar = fig.colorbar(im, cax=cax, orientation='vertical', ticks=[-max_abs_pred, 0, max_abs_pred])
                 cbar.ax.set_yticklabels(['-ve', '0', '+ve'])
+                cbar.ax.tick_params(labelsize=14)
                 format_axis(axis, self.dataset.target_to_name(clz).replace('_', ' ').title())
             else:
                 format_axis(axis, '')
 
         plt.tight_layout()
         # plt.show()
-        fig.savefig(save_path, dpi=300)
+        fig.savefig(save_path, dpi=300, bbox_inches='tight', pad_inches=0.05)
         plt.close(fig)
 
     def _create_instance_mask(self, instance_predictions, clz):

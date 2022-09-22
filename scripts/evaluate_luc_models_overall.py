@@ -195,8 +195,7 @@ def evaluate_iou_orig(predictions, labels, grid_size, cell_size, mask_paths):
 
     # Compute IoU by first calculating the unions and intersections for every image, then doing a final computation
     # Storing all the predicted masks and true masks is too expensive
-    all_unions = []
-    all_intersections = []
+    all_conf_mats = []
     for idx in tqdm(range(len(grid_clz_predictions)), desc='Computing high res mIOU', leave=False):
         # Load true mask image to compare to
         mask_img = torch.as_tensor(np.array(Image.open(mask_paths[idx])))
@@ -234,7 +233,7 @@ def evaluate_iou_orig(predictions, labels, grid_size, cell_size, mask_paths):
         pred_clz_labels = torch.where(pred_clz_labels > 0, pred_clz_labels - 1, 0).long()
 
         # Compute intersection and union for this bag (used to calculate an overall IOU later)
-        _, _, intersection, union = IoUMetric.intersection_over_union(mask_clz_labels, pred_clz_labels, len(labels))
+        _, _, conf_mat = IoUMetric.intersection_over_union(mask_clz_labels, pred_clz_labels, len(labels))
 
         # Remap the classes
         #   clz                        ->  binary   ->  n  ->  n + 1
@@ -245,16 +244,17 @@ def evaluate_iou_orig(predictions, labels, grid_size, cell_size, mask_paths):
         #   clz 4 (water)              ->  0, 0, 1  ->  3  ->  4
         #   clz 5 (barren land)        ->  1, 1, 1  ->  6  ->  7
         #   clz 6 (unknown)            ->  0, 0, 0  ->  0  ->  0
-        intersection = intersection[[5, 2, 4, 1, 3, 6, 0]]
-        union = union[[5, 2, 4, 1, 3, 6, 0]]
-        all_intersections.append(intersection)
-        all_unions.append(union)
+        remap = [5, 2, 4, 1, 3, 6, 0]
+        conf_mat = conf_mat[:, remap]
+        conf_mat = conf_mat[remap, :]
+        all_conf_mats.append(conf_mat)
+
+        if idx == 10:
+            break
 
     # Compute the final IoU score
-    all_intersections = torch.stack(all_intersections)
-    all_unions = torch.stack(all_unions)
-    mean_iou, clz_iou = IoUMetric.calculate_from_cumulative(all_intersections, all_unions)
-    met = IoUMetric(mean_iou, clz_iou)
+    mean_iou, clz_iou, conf_mat = IoUMetric.calculate_from_cumulative(all_conf_mats)
+    met = IoUMetric(mean_iou, clz_iou, conf_mat)
     return met
 
 
