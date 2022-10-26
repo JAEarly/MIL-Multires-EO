@@ -5,31 +5,44 @@ Adapted from https://github.com/milesial/Pytorch-UNet
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import wandb
 
 from bonfire.model import models
 from dgr_luc_dataset import DgrLucDataset
+
+
+def get_model_param(key):
+    return wandb.config[key]
 
 
 class DgrUNet(models.MultipleInstanceNN):
 
     name = "DgrUNet"
 
-    def __init__(self, device, bilinear=False):
+    def __init__(self, device):
+        bilinear = get_model_param("bilinear")
+        out_func_name = get_model_param("out_func")
         super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims)
-        self.bilinear = bilinear
 
-        # Model layers
+        # Model
+        factor = 2 if bilinear else 1
         self.in_conv = DoubleConv(3, 64)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
         self.down3 = Down(256, 512)
-        factor = 2 if bilinear else 1
         self.down4 = Down(512, 1024 // factor)
         self.up1 = Up(1024, 512 // factor, bilinear)
         self.up2 = Up(512, 256 // factor, bilinear)
         self.up3 = Up(256, 128 // factor, bilinear)
         self.up4 = Up(128, 64, bilinear)
-        self.out_conv = OutConv(64, self.n_classes)
+
+        # Classifier
+        if out_func_name == 'avg':
+            self.out = OutConvAvg(64, self.n_classes)
+        elif out_func_name == 'gap':
+            self.out = OutGAP(64, self.n_classes)
+        else:
+            raise ValueError('Invalid out function: {:}'.format(out_func_name))
 
     def _internal_forward(self, bags):
         batch_size = len(bags)
@@ -42,7 +55,6 @@ class DgrUNet(models.MultipleInstanceNN):
             x = instances[0]
 
             # Pass through model
-            # print('in', x.shape)
             x = x.to(self.device).unsqueeze(0)
             # print('in', x.shape)
             x1 = self.in_conv(x)
@@ -63,12 +75,7 @@ class DgrUNet(models.MultipleInstanceNN):
             # print('x up 3', x.shape)
             x = self.up4(x, x1)
             # print('x up 4', x.shape)
-            segmentation_logits = self.out_conv(x)
-
-            # Sum over all pixels to get class predictions
-            bag_pred = torch.sum(segmentation_logits, dim=(2, 3))
-            # Norm by number of pixels
-            bag_pred /= segmentation_logits.shape[-1] * segmentation_logits.shape[-2]
+            bag_pred = self.out(x)
 
             # Update outputs
             bag_predictions[i] = bag_pred
@@ -128,11 +135,11 @@ class Up(nn.Module):
     def forward(self, x1, x2):
         x1 = self.up(x1)
         # input is CHW
-        diffY = x2.size()[2] - x1.size()[2]
-        diffX = x2.size()[3] - x1.size()[3]
+        diff_x = x2.size()[3] - x1.size()[3]
+        diff_y = x2.size()[2] - x1.size()[2]
 
-        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
-                        diffY // 2, diffY - diffY // 2])
+        x1 = F.pad(x1, [diff_x // 2, diff_x - diff_x // 2,
+                        diff_y // 2, diff_y - diff_y // 2])
         # if you have padding issues, see
         # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
         # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
@@ -140,10 +147,26 @@ class Up(nn.Module):
         return self.conv(x)
 
 
-class OutConv(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(OutConv, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+class OutConvAvg(nn.Module):
+
+    def __init__(self, in_channels, n_classes):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, n_classes, kernel_size=1)
 
     def forward(self, x):
-        return self.conv(x)
+        clz_x = self.conv(x)
+        # Calculate mean over all pixels to get class predictions
+        bag_pred = torch.mean(clz_x, dim=(2, 3))
+        return bag_pred
+
+
+class OutGAP(nn.Module):
+
+    def __init__(self, fc_in, n_classes):
+        super().__init__()
+        self.fc = nn.Linear(fc_in, n_classes)
+
+    def forward(self, x):
+        gap_x = F.avg_pool2d(x, kernel_size=x.size()[2:]).squeeze(3).squeeze(2)
+        bag_pred = self.fc(gap_x)
+        return bag_pred

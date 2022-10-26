@@ -52,6 +52,8 @@ def summarise_configs():
 def _format_model_type(model_type):
     if model_type == 'resnet':
         return 'ResNet18'
+    elif 'unet' in model_type:
+        return 'UNet {:s}'.format(model_type[-3:])
     grid_size, patch_size = model_type.split('_')
     return 'MIL {:s} {:s}'.format(patch_size.title(), grid_size)
 
