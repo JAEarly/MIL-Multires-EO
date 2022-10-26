@@ -7,6 +7,7 @@ from bonfire.model import aggregator as agg
 from bonfire.model import models
 from bonfire.model import modules as mod
 from dgr_luc_dataset import DgrLucDataset
+from dgr_luc_unet import DgrUNet
 
 
 def get_model_param(key):
@@ -22,6 +23,8 @@ def get_model_clz(model_type):
         return DgrInstanceSpaceNNLarge
     elif 'resnet' in model_type:
         return DgrResNet18
+    elif 'unet' in model_type:
+        return DgrUNet
     raise ValueError('No model class found for model type {:s}'.format(model_type))
 
 
