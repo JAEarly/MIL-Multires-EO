@@ -56,8 +56,8 @@ training:
     wd: 0.1
     dropout: 0
   unet224:
-    lr: 1.e-4
-    wd: 1.e-5
+    lr: 5.e-4
+    wd: 0.01
     bilinear: True
     out_func: avg
 tuning:
