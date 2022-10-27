@@ -58,7 +58,14 @@ training:
   unet224:
     lr: 5.e-4
     wd: 0.01
+    dropout: 0.1
     bilinear: True
+    out_func: avg
+  unet448:
+    lr: 5.e-4
+    wd: 0.01
+    dropout: 0.1
+    bilinear: False
     out_func: avg
 tuning:
   default:

@@ -22,25 +22,26 @@ class DgrUNet(models.MultipleInstanceNN):
     def __init__(self, device):
         bilinear = get_model_param("bilinear")
         out_func_name = get_model_param("out_func")
+        dropout = get_model_param("dropout")
         super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims)
 
         # Model
         factor = 2 if bilinear else 1
-        self.in_conv = DoubleConv(3, 64)
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
-        self.down4 = Down(512, 1024 // factor)
-        self.up1 = Up(1024, 512 // factor, bilinear)
-        self.up2 = Up(512, 256 // factor, bilinear)
-        self.up3 = Up(256, 128 // factor, bilinear)
-        self.up4 = Up(128, 64, bilinear)
+        self.in_conv = DoubleConv(3, 32, dropout)
+        self.down1 = Down(32, 64, dropout)
+        self.down2 = Down(64, 128, dropout)
+        self.down3 = Down(128, 256, dropout)
+        self.down4 = Down(256, 512 // factor, dropout)
+        self.up1 = Up(512, 256 // factor, dropout, bilinear)
+        self.up2 = Up(256, 128 // factor, dropout, bilinear)
+        self.up3 = Up(128, 64 // factor, dropout, bilinear)
+        self.up4 = Up(64, 32, dropout, bilinear)
 
         # Classifier
         if out_func_name == 'avg':
-            self.out = OutConvAvg(64, self.n_classes)
+            self.out = OutConvAvg(32, self.n_classes)
         elif out_func_name == 'gap':
-            self.out = OutGAP(64, self.n_classes)
+            self.out = OutGAP(32, self.n_classes)
         else:
             raise ValueError('Invalid out function: {:}'.format(out_func_name))
 
@@ -87,16 +88,18 @@ class DgrUNet(models.MultipleInstanceNN):
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
-    def __init__(self, in_channels, out_channels, mid_channels=None):
+    def __init__(self, in_channels, out_channels, dropout, mid_channels=None):
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(mid_channels),
+            # nn.BatchNorm2d(mid_channels),
+            nn.Dropout(p=dropout),
             nn.ReLU(inplace=True),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
+            # nn.BatchNorm2d(out_channels),
+            nn.Dropout(p=dropout),
             nn.ReLU(inplace=True)
         )
 
@@ -107,11 +110,11 @@ class DoubleConv(nn.Module):
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, dropout):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),
-            DoubleConv(in_channels, out_channels)
+            DoubleConv(in_channels, out_channels, dropout)
         )
 
     def forward(self, x):
@@ -121,16 +124,16 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, dropout, bilinear=True):
         super().__init__()
 
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
+            self.conv = DoubleConv(in_channels, out_channels, dropout, mid_channels=in_channels // 2)
         else:
             self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
-            self.conv = DoubleConv(in_channels, out_channels)
+            self.conv = DoubleConv(in_channels, out_channels, dropout)
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
