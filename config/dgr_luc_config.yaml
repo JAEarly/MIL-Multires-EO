@@ -57,16 +57,16 @@ training:
     dropout: 0
   unet224:
     lr: 5.e-4
-    wd: 0.01
-    dropout: 0.1
+    wd: 1.e-5
+    dropout: 0.25
     bilinear: True
-    out_func: avg
+    out_func: gap
   unet448:
     lr: 5.e-4
-    wd: 0.01
-    dropout: 0.1
+    wd: 1.e-6
+    dropout: 0.2
     bilinear: False
-    out_func: avg
+    out_func: gap
 tuning:
   default:
     lr: [1.e-6, 5.e-6, 1.e-5, 5.e-5, 1.e-4, 5.e-4, 1.e-3]
