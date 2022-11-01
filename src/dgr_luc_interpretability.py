@@ -47,15 +47,18 @@ class MilLucInterpretabilityStudy:
             self.create_interpretation(idx, bag, target, bmd['id'])
 
     def create_interpretation_from_id(self, img_id):
+        print('Looking for image id: {:}'.format(img_id))
         for idx, bag_md in enumerate(self.dataset.bags_metadata):
             if bag_md['id'] == img_id:
+                print(' Found')
                 data = self.dataset[idx]
                 bmd = self.dataset.bags_metadata[idx]
                 bag, target = data[0], data[1]
                 self.create_interpretation(idx, bag, target, bmd['id'])
-                break
+                exit(0)
             else:
                 continue
+        print(' Not found')
 
     def create_interpretation(self, idx, bag, target, bag_id):
         save_path = "out/interpretability/{:}/{:}_interpretation.png".format(self.dataset.model_type, bag_id)

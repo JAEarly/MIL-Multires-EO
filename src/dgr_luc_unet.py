@@ -48,7 +48,7 @@ class DgrUNet(models.MultipleInstanceNN):
     def _internal_forward(self, bags):
         batch_size = len(bags)
         bag_predictions = torch.zeros((batch_size, self.n_classes)).to(self.device)
-        bag_instance_predictions = []
+        bag_cams = []
         # Bags may be of different sizes, so we can't use a tensor to store the instance predictions
         for i, instances in enumerate(bags):
             # Should only be a single instance for this type of model
@@ -76,13 +76,13 @@ class DgrUNet(models.MultipleInstanceNN):
             # print('x up 3', x.shape)
             x = self.up4(x, x1)
             # print('x up 4', x.shape)
-            bag_pred = self.out(x)
+            bag_pred, bag_cam = self.out(x)
 
             # Update outputs
             bag_predictions[i] = bag_pred
             # TODO save segmentation outputs
-            bag_instance_predictions.append(None)
-        return bag_predictions, bag_instance_predictions
+            bag_cams.append(bag_cam)
+        return bag_predictions, bag_cams
 
 
 class DoubleConv(nn.Module):
@@ -170,6 +170,13 @@ class OutGAP(nn.Module):
         self.fc = nn.Linear(fc_in, n_classes)
 
     def forward(self, x):
+        # Bag pred with global average pooling
         gap_x = F.avg_pool2d(x, kernel_size=x.size()[2:]).squeeze(3).squeeze(2)
         bag_pred = self.fc(gap_x)
-        return bag_pred
+
+        # Class activation map as interpretability output
+        c, h, w = x.squeeze().shape
+        x_flat = torch.reshape(x, (c, h * w))
+        cam_flat = self.fc.weight @ x_flat
+        cam = torch.reshape(cam_flat, (-1, h, w))
+        return bag_pred, cam
