@@ -136,22 +136,23 @@ def eval_model(model_type, bag_metric, model, dataloader, verbose=False):
             bag_result.out()
 
     # Calculate instance results
-    all_instance_preds = torch.stack(all_instance_preds)
-    all_instance_targets = torch.cat(all_instance_targets)
-    patch_details = get_patch_details(model_type)
     grid_results = IoUMetric(torch.nan, torch.nan, None)
     seg_results = IoUMetric(torch.nan, torch.nan, None)
 
-    if 'unet' in model_type:
-        # No evaluation for grid segmentation
-        seg_results = evaluate_iou_segmentation(dataloader.dataset, all_instance_preds, labels, all_mask_paths)
-    elif model_type != 'resnet':
-        grid_predictions = all_instance_preds.view(-1, patch_details.grid_size, patch_details.grid_size, len(labels))
-        grid_predictions = grid_predictions.swapaxes(1, 3)
-        grid_targets = all_instance_targets.view(-1, patch_details.grid_size, patch_details.grid_size, len(labels))
-        grid_targets = grid_targets.swapaxes(1, 3)
-        grid_results = evaluate_iou_grid(grid_predictions, grid_targets, labels)
-        seg_results = evaluate_iou_segmentation(dataloader.dataset, grid_predictions, labels, all_mask_paths)
+    if model_type != 'resnet':
+        all_instance_preds = torch.stack(all_instance_preds)
+        all_instance_targets = torch.cat(all_instance_targets)
+        if 'unet' in model_type:
+            # No evaluation for grid segmentation
+            seg_results = evaluate_iou_segmentation(dataloader.dataset, all_instance_preds, labels, all_mask_paths)
+        elif model_type != 'resnet':
+            patch_details = get_patch_details(model_type)
+            grid_predictions = all_instance_preds.view(-1, patch_details.grid_size, patch_details.grid_size, len(labels))
+            grid_predictions = grid_predictions.swapaxes(1, 3)
+            grid_targets = all_instance_targets.view(-1, patch_details.grid_size, patch_details.grid_size, len(labels))
+            grid_targets = grid_targets.swapaxes(1, 3)
+            grid_results = evaluate_iou_grid(grid_predictions, grid_targets, labels)
+            seg_results = evaluate_iou_segmentation(dataloader.dataset, grid_predictions, labels, all_mask_paths)
 
     instance_results = [grid_results, seg_results]
     if verbose:
