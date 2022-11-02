@@ -20,10 +20,11 @@ rc('text', usetex=True)
 
 class MilLucInterpretabilityStudy:
 
-    def __init__(self, device, dataset, model):
+    def __init__(self, device, dataset, model, show_outputs):
         self.device = device
         self.dataset = dataset
         self.model = model
+        self.show_outputs = show_outputs
 
     def create_reconstructions(self):
         reconstruction_dir = RECONSTRUCTION_DATA_DIR_FMT.format(self.dataset.cell_size, self.dataset.patch_size)
@@ -62,7 +63,7 @@ class MilLucInterpretabilityStudy:
 
     def create_interpretation(self, idx, bag, target, bag_id):
         save_path = "out/interpretability/{:}/{:}_interpretation.png".format(self.dataset.model_type, bag_id)
-        if os.path.exists(save_path):
+        if not self.show_outputs and os.path.exists(save_path):
             return
 
         bag_prediction, instance_predictions = self.model.forward_verbose(bag)
@@ -119,7 +120,8 @@ class MilLucInterpretabilityStudy:
                 format_axis(axis, '')
 
         plt.tight_layout()
-        # plt.show()
+        if self.show_outputs:
+            plt.show()
         fig.savefig(save_path, dpi=300, bbox_inches='tight', pad_inches=0.05)
         plt.close(fig)
 

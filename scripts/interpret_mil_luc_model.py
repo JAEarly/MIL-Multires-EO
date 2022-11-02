@@ -18,12 +18,14 @@ def parse_args():
     parser = argparse.ArgumentParser(description='MIL LUC interpretability script.')
     parser.add_argument('model_type', choices=model_type_choices, help="Type of model to interpret.")
     parser.add_argument('task', choices=['reconstruct', 'sample', 'specific'], help='The task to perform.')
+    parser.add_argument('-s', '--show_outputs', action='store_true',
+                        help="Whether or not to show the interpretability outputs (they're always saved).")
     args = parser.parse_args()
-    return args.model_type, args.task
+    return args.model_type, args.task, args.show_outputs
 
 
 def run():
-    model_type, task = parse_args()
+    model_type, task, show_outputs = parse_args()
 
     # Best idx by model type
     if model_type == '24_medium':
@@ -33,6 +35,9 @@ def run():
     elif model_type == '8_large':
         model_idx = 2
     elif model_type == 'unet224':
+        model_idx = 2
+    elif model_type == 'unet448':
+        # TODO is this right?
         model_idx = 2
     else:
         raise NotImplementedError
@@ -53,9 +58,9 @@ def run():
     model = load_model_from_path(device, model_clz, model_path)
 
     if 'unet' in model_type:
-        study = UnetLucInterpretabilityStudy(device, complete_dataset, model)
+        study = UnetLucInterpretabilityStudy(device, complete_dataset, model, show_outputs)
     else:
-        study = MilLucInterpretabilityStudy(device, complete_dataset, model)
+        study = MilLucInterpretabilityStudy(device, complete_dataset, model, show_outputs)
 
     if task == 'reconstruct':
         study.create_reconstructions()
