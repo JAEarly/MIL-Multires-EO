@@ -92,13 +92,12 @@ class UnetLucInterpretabilityStudy(MilLucInterpretabilityStudy):
         overall_clz_mask = overall_clz_mask.detach().cpu()
 
         # Create palette to map from clz to colours
-        clz_palette = np.asarray([self.dataset.target_to_rgb(clz) for clz in range(7)]) * 255
-        clz_palette = clz_palette.flatten()
+        clz_palette = self.dataset.create_clz_palette()
 
         # Create color mask from palette and clz mask
         overall_colour_mask = Image.new('P', (grid_size, grid_size))
         overall_colour_mask.putdata(torch.flatten(overall_clz_mask).numpy())
-        overall_colour_mask.putpalette(clz_palette.tolist(), rawmode="RGB")
+        overall_colour_mask.putpalette(clz_palette, rawmode="RGB")
         overall_colour_mask = overall_colour_mask.convert('RGB')
 
         # Create weight palette

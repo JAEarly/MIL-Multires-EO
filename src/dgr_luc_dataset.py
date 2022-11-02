@@ -371,6 +371,11 @@ class DgrLucDataset(MilDataset, ABC):
         return rgb
 
     @classmethod
+    def create_clz_palette(cls):
+        clz_palette = np.asarray([cls.target_to_rgb(clz) for clz in range(7)]) * 255
+        return clz_palette.flatten().tolist()
+
+    @classmethod
     def rgb_to_target(cls, r, g, b):
         row = cls.class_dict_df.loc[(cls.class_dict_df['r'] == r) &
                                     (cls.class_dict_df['g'] == g) &
