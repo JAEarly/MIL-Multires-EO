@@ -138,19 +138,23 @@ def eval_model(model_type, bag_metric, model, dataloader, verbose=False):
     # Calculate instance results
     grid_results = IoUMetric(torch.nan, torch.nan, None)
     seg_results = IoUMetric(torch.nan, torch.nan, None)
-
     if model_type != 'resnet':
         all_instance_preds = torch.stack(all_instance_preds)
-        all_instance_targets = torch.cat(all_instance_targets)
+        all_instance_targets = torch.stack(all_instance_targets)
         if 'unet' in model_type:
             # No evaluation for grid segmentation
             seg_results = evaluate_iou_segmentation(dataloader.dataset, all_instance_preds, labels, all_mask_paths)
         elif model_type != 'resnet':
+            # Wrangle predictions and targets to match unet output
+            #  Swap class and instance axes
+            #  Reshape to match the image grid
             patch_details = get_patch_details(model_type)
-            grid_predictions = all_instance_preds.view(-1, patch_details.grid_size, patch_details.grid_size, len(labels))
-            grid_predictions = grid_predictions.swapaxes(1, 3)
-            grid_targets = all_instance_targets.view(-1, patch_details.grid_size, patch_details.grid_size, len(labels))
-            grid_targets = grid_targets.swapaxes(1, 3)
+            grid_predictions = all_instance_preds\
+                .swapaxes(1, 2)\
+                .reshape(-1, len(labels), patch_details.grid_size, patch_details.grid_size)
+            grid_targets = all_instance_targets\
+                .swapaxes(1, 2)\
+                .reshape(-1, len(labels), patch_details.grid_size, patch_details.grid_size)
             grid_results = evaluate_iou_grid(grid_predictions, grid_targets, labels)
             seg_results = evaluate_iou_segmentation(dataloader.dataset, grid_predictions, labels, all_mask_paths)
 
@@ -166,18 +170,20 @@ def evaluate_iou_grid(grid_predictions, grid_targets, labels):
     # Evaluate IoU on grid preds and targets
     grid_clz_predictions = torch.argmax(grid_predictions, dim=1).long()
     grid_clz_targets = torch.argmax(grid_targets, dim=1).long()
-    met = IoUMetric.calculate_metric(grid_clz_predictions, grid_clz_targets, labels)
-    return met
+    return IoUMetric.calculate_metric(grid_clz_predictions, grid_clz_targets, labels)
 
 
-def evaluate_iou_segmentation(dataset, instance_preds, labels, mask_paths):
-    # Evaluate IoU against original high res segmented images by scaling up the low resolution grid predictions
-    all_grid_clz_predictions = torch.argmax(instance_preds, dim=1).long()
+def evaluate_iou_segmentation(dataset, all_grid_predictions, labels, mask_paths):
+    """
+    Evaluate IoU against original high res segmented images by scaling up the low resolution grid predictions
+    """
+    all_grid_clz_predictions = torch.argmax(all_grid_predictions, dim=1).long()
 
     # Compute IoU by first calculating the unions and intersections for every image, then doing a final computation
     # Storing all the predicted masks and true masks is too expensive
     all_conf_mats = []
-    for idx in tqdm(range(len(all_grid_clz_predictions)), desc='Computing high res mIOU', leave=False):
+    for idx, grid_clz_predictions in tqdm(enumerate(all_grid_clz_predictions), desc='Computing high res mIOU',
+                                          leave=False, total=len(all_grid_clz_predictions)):
         # Load true mask image to compare to
         mask_img = Image.open(mask_paths[idx])
 
@@ -196,9 +202,8 @@ def evaluate_iou_segmentation(dataset, instance_preds, labels, mask_paths):
         mask_clz_tensor = torch.as_tensor(np.array(mask_img))
 
         # Scale up grid predictions to same size as original image
-        pred_clz_tensor = all_grid_clz_predictions[idx]
         #  Have to double unsqueeze to add batch and channel dimensions so interpolation acts in the correct dimensions
-        pred_clz_tensor = F.interpolate(pred_clz_tensor.float().unsqueeze(0).unsqueeze(0),
+        pred_clz_tensor = F.interpolate(grid_clz_predictions.float().unsqueeze(0).unsqueeze(0),
                                         size=(2448, 2448), mode='nearest-exact')
         pred_clz_tensor = pred_clz_tensor.squeeze().long()
 
