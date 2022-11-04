@@ -1,14 +1,13 @@
 import csv
 
 import latextable
-from texttable import Texttable
 import numpy as np
-from matplotlib import pyplot as plt
+from texttable import Texttable
 
 
 def run():
     file = "results/raw_results.txt"
-    model_names = ['resnet', '8_small', '8_medium', '8_large', '16_small', '16_medium', '16_large',
+    model_names = ['resnet', 'unet224', 'unet448', '8_small', '8_medium', '8_large', '16_small', '16_medium', '16_large',
                    '24_small', '24_medium', '24_large']
     with open(file, newline='') as csv_file:
         reader = csv.reader(csv_file, delimiter='|')
@@ -16,32 +15,26 @@ def run():
         split_idx = 0
         for row in reader:
             split.append(row)
-            if len(split) == 24:
+            if len(split) == 28:
                 if split_idx == 0:
                     scene_rmse = parse_split(split, -3)
                     scene_mae = parse_split(split, -2)
                 elif split_idx == 1:
-                    patch_rmse = parse_split(split, -3)
-                    patch_mae = parse_split(split, -2)
-                elif split_idx == 2:
                     grid_seg = parse_split(split, -2)
-                elif split_idx == 3:
+                elif split_idx == 2:
                     high_res_seg = parse_split(split, -2)
                     break
                 split_idx += 1
                 split = []
                 next(reader)
 
-    rows = [['Configuration', 'Scene RMSE', 'Scene MAE', 'Patch mIoU (Grid)', 'Patch mIoU (Original)']]
+    rows = [['Configuration', 'Scene RMSE', 'Scene MAE', 'Grid mIoU', 'Original mIoU']]
     means = []
-    sems = []
     for model in model_names:
         row = [format_model_type(model), scene_rmse[model], scene_mae[model], grid_seg[model], high_res_seg[model]]
         row_means = [float(r.split(' +- ')[0]) for r in row[1:]]
         means.append(row_means)
-
         row[1:] = ['{:.3f} $\pm$ {:.3f}'.format(*[float(s) for s in r.split(' +- ')]) for r in row[1:]]
-        # row = [r.replace('+-', '$\pm$') for r in row]
         row = [r if 'nan' not in r else 'N/A' for r in row]
         rows.append(row)
 
@@ -112,8 +105,10 @@ def parse_split(split, idx):
 def format_model_type(model_type):
     if model_type == 'resnet':
         return 'ResNet18'
+    elif 'unet' in model_type:
+        return 'UNet {:s}'.format(model_type[-3:])
     grid_size, patch_size = model_type.split('_')
-    return 'MIL {:s} {:s}'.format(patch_size.title(), grid_size)
+    return 'S2P {:s} {:s}'.format(patch_size.title(), grid_size)
 
 
 if __name__ == "__main__":
