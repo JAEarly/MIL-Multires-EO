@@ -28,7 +28,7 @@ def run():
                 split = []
                 next(reader)
 
-    rows = [['Configuration', 'Scene RMSE', 'Scene MAE', 'Grid mIoU', 'Original mIoU']]
+    rows = [['Configuration', 'Scene RMSE', 'Scene MAE', 'Patch mIoU', 'Pixel mIoU']]
     means = []
     for model in model_names:
         row = [format_model_type(model), scene_rmse[model], scene_mae[model], grid_seg[model], high_res_seg[model]]

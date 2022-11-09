@@ -127,7 +127,7 @@ class Up(nn.Module):
     def __init__(self, in_channels, out_channels, dropout, bilinear=True):
         super().__init__()
 
-        # if bilinear, use the normal convolutions to reduce the number of channels
+        # if bilinear, use the fixed upsampling, otherwise use a learnt conv layer
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, dropout, mid_channels=in_channels // 2)
@@ -177,6 +177,12 @@ class OutGAP(nn.Module):
         # Class activation map as interpretability output
         c, h, w = x.squeeze().shape
         x_flat = torch.reshape(x, (c, h * w))
+        #  Multiply by fc weight
         cam_flat = self.fc.weight @ x_flat
         cam = torch.reshape(cam_flat, (-1, h, w))
+        #  Add fc bias
+        cam_bias = self.fc.bias.unsqueeze(1).unsqueeze(2)
+        cam_bias = cam_bias.repeat(1, h, w)
+        cam += cam_bias
+
         return bag_pred, cam

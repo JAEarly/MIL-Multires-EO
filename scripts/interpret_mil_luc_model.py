@@ -7,7 +7,6 @@ from bonfire.util import load_model_from_path, get_default_save_path
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
 from dgr_luc_dataset import get_dataset_clz, get_model_type_list
 from dgr_luc_interpretability import MilLucInterpretabilityStudy
-from dgr_luc_unet_interpretability import UnetLucInterpretabilityStudy
 from dgr_luc_models import get_model_clz
 
 device = get_device()
@@ -36,9 +35,9 @@ def run():
         model_idx = 2
     elif model_type == 'unet224':
         model_idx = 2
-    elif model_type == 'unet448':
-        # TODO is this right?
-        model_idx = 2
+    # elif model_type == 'unet448':
+    #     # TODO is this right?
+    #     model_idx = 2
     else:
         raise NotImplementedError
 
@@ -56,18 +55,14 @@ def run():
 
     complete_dataset = dataset_clz.create_complete_dataset()
     model = load_model_from_path(device, model_clz, model_path)
-
-    if 'unet' in model_type:
-        study = UnetLucInterpretabilityStudy(device, complete_dataset, model, show_outputs)
-    else:
-        study = MilLucInterpretabilityStudy(device, complete_dataset, model, show_outputs)
+    study = MilLucInterpretabilityStudy(device, complete_dataset, model, show_outputs)
 
     if task == 'reconstruct':
         study.create_reconstructions()
     elif task == 'sample':
         study.sample_interpretations()
     elif task == 'specific':
-        study.create_interpretation_from_id(182027)
+        study.create_interpretation_from_id(435277)
     else:
         raise NotImplementedError('Task not implemented: {:s}.'.format(task))
 

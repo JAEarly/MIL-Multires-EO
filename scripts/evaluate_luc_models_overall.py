@@ -145,18 +145,15 @@ def eval_model(model_type, bag_metric, model, dataloader, verbose=False):
             # No evaluation for grid segmentation
             seg_results = evaluate_iou_segmentation(dataloader.dataset, all_instance_preds, labels, all_mask_paths)
         elif model_type != 'resnet':
-            # Wrangle predictions and targets to match unet output
+            # Wrangle targets to grid shape
             #  Swap class and instance axes
             #  Reshape to match the image grid
             patch_details = get_patch_details(model_type)
-            grid_predictions = all_instance_preds\
-                .swapaxes(1, 2)\
-                .reshape(-1, len(labels), patch_details.grid_size, patch_details.grid_size)
             grid_targets = all_instance_targets\
                 .swapaxes(1, 2)\
                 .reshape(-1, len(labels), patch_details.grid_size, patch_details.grid_size)
-            grid_results = evaluate_iou_grid(grid_predictions, grid_targets, labels)
-            seg_results = evaluate_iou_segmentation(dataloader.dataset, grid_predictions, labels, all_mask_paths)
+            grid_results = evaluate_iou_grid(all_instance_preds, grid_targets, labels)
+            seg_results = evaluate_iou_segmentation(dataloader.dataset, all_instance_preds, labels, all_mask_paths)
 
     instance_results = [grid_results, seg_results]
     if verbose:
