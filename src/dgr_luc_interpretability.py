@@ -55,16 +55,13 @@ class MilLucInterpretabilityStudy:
                 data = self.dataset[idx]
                 bmd = self.dataset.bags_metadata[idx]
                 bag, target = data[0], data[1]
-                self.create_interpretation(idx, bag, target, bmd['id'])
-                return
+                return self.create_interpretation(idx, bag, target, bmd['id'])
             else:
                 continue
         print(' Not found')
 
     def create_interpretation(self, idx, bag, target, bag_id):
         save_path = "out/interpretability/{:}/{:}_interpretation.png".format(self.dataset.model_type, bag_id)
-        if not self.show_outputs and os.path.exists(save_path):
-            return
 
         bag_prediction, patch_preds = self.model.forward_verbose(bag)
         patch_preds = patch_preds.detach().cpu()
@@ -86,54 +83,61 @@ class MilLucInterpretabilityStudy:
         pred_masks = self._create_overall_mask(sat_img, patch_preds, cmaps, norms)
         pred_clz_mask, overall_colour_mask, overall_weighted_colour_mask, _ = pred_masks
 
-        clz_counts = Counter(pred_clz_mask.flatten().tolist()).most_common()
-        clz_order = [int(c[0]) for c in clz_counts]
+        # Can skip plotting if we're not showing the output and the file already exists
+        if self.show_outputs or not os.path.exists(save_path):
+            clz_counts = Counter(pred_clz_mask.flatten().tolist()).most_common()
+            clz_order = [int(c[0]) for c in clz_counts]
 
-        def format_axis(ax, title=None):
-            ax.set_axis_off()
-            ax.set_aspect('equal')
-            if title is not None:
-                ax.set_title(title, fontsize=16)
+            def format_axis(ax, title=None):
+                ax.set_axis_off()
+                ax.set_aspect('equal')
+                if title is not None:
+                    ax.set_title(title, fontsize=16)
 
-        fig, axes = plt.subplots(nrows=2, ncols=4, figsize=(12, 5))
-        axes[0][0].imshow(sat_img)
-        format_axis(axes[0][0], "Original Image")
+            fig, axes = plt.subplots(nrows=2, ncols=4, figsize=(12, 5))
+            axes[0][0].imshow(sat_img)
+            format_axis(axes[0][0], "Original Image")
 
-        axes[0][1].imshow(mask_img)
-        format_axis(axes[0][1], "True Pixel Mask")
+            axes[0][1].imshow(mask_img)
+            format_axis(axes[0][1], "True Pixel Mask")
 
-        # If grid size is > 1, then it's worth looking at the patch grid mask
-        #  Otherwise, when grid size = 1 (e.g., with UNet), output the unweighted predicted mask
-        if self.dataset.patch_details.grid_size > 1:
-            axes[0][2].imshow(grid_ground_truth_coloured_mask)
-            format_axis(axes[0][2], "True Patch Mask")
-        else:
-            axes[0][2].imshow(overall_colour_mask)
-            format_axis(axes[0][2], "Hard Predicted Mask")
+            # If grid size is > 1, then it's worth looking at the patch grid mask
+            #  Otherwise, when grid size = 1 (e.g., with UNet), output the unweighted predicted mask
+            if self.dataset.patch_details.grid_size > 1:
+                axes[0][2].imshow(grid_ground_truth_coloured_mask)
+                format_axis(axes[0][2], "True Patch Mask")
 
-        axes[0][3].imshow(overall_weighted_colour_mask)
-        format_axis(axes[0][3], "Predicted Mask")
-
-        for clz_idx in range(4):
-            axis = axes[1][clz_idx]
-            if clz_idx < len(clz_order):
-                clz = clz_order[clz_idx]
-                im = axis.imshow(patch_preds[clz], cmap=cmaps[clz], norm=norms[clz])
-                divider = make_axes_locatable(axis)
-                cax = divider.append_axes('right', size='5%', pad=0.05)
-                cbar = fig.colorbar(im, cax=cax, orientation='vertical',
-                                    ticks=[-max_abs_preds[clz], 0, max_abs_preds[clz]])
-                cbar.ax.set_yticklabels(['-ve', '0', '+ve'])
-                cbar.ax.tick_params(labelsize=14)
-                format_axis(axis, self.dataset.target_to_name(clz).replace('_', ' ').title())
+                axes[0][3].imshow(overall_weighted_colour_mask)
+                format_axis(axes[0][3], "Predicted Mask")
             else:
-                format_axis(axis, '')
+                axes[0][2].imshow(overall_weighted_colour_mask)
+                format_axis(axes[0][2], "Predicted Mask")
 
-        plt.tight_layout()
-        if self.show_outputs:
-            plt.show()
-        fig.savefig(save_path, dpi=300, bbox_inches='tight', pad_inches=0.05)
-        plt.close(fig)
+                axes[0][3].imshow(overall_colour_mask)
+                format_axis(axes[0][3], "Predicted Mask (Unweighted)")
+
+            for clz_idx in range(4):
+                axis = axes[1][clz_idx]
+                if clz_idx < len(clz_order):
+                    clz = clz_order[clz_idx]
+                    im = axis.imshow(patch_preds[clz], cmap=cmaps[clz], norm=norms[clz])
+                    divider = make_axes_locatable(axis)
+                    cax = divider.append_axes('right', size='5%', pad=0.05)
+                    cbar = fig.colorbar(im, cax=cax, orientation='vertical',
+                                        ticks=[-max_abs_preds[clz], 0, max_abs_preds[clz]])
+                    cbar.ax.set_yticklabels(['-ve', '0', '+ve'])
+                    cbar.ax.tick_params(labelsize=14)
+                    format_axis(axis, self.dataset.target_to_name(clz).replace('_', ' ').title())
+                else:
+                    format_axis(axis, '')
+
+            plt.tight_layout()
+            if self.show_outputs:
+                plt.show()
+            fig.savefig(save_path, dpi=300, bbox_inches='tight', pad_inches=0.05)
+            plt.close(fig)
+
+        return sat_img, mask_img, grid_ground_truth_coloured_mask, overall_colour_mask, overall_weighted_colour_mask
 
     def _create_overall_mask(self, sat_img, patch_preds, cmaps, norms):
         # Create mask of top clz and its weight for each pixel

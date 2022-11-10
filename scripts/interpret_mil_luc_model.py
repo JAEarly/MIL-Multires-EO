@@ -35,9 +35,8 @@ def run():
         model_idx = 2
     elif model_type == 'unet224':
         model_idx = 2
-    # elif model_type == 'unet448':
-    #     # TODO is this right?
-    #     model_idx = 2
+    elif model_type == 'unet448':
+        model_idx = 2
     else:
         raise NotImplementedError
 
@@ -62,7 +61,7 @@ def run():
     elif task == 'sample':
         study.sample_interpretations()
     elif task == 'specific':
-        study.create_interpretation_from_id(435277)
+        study.create_interpretation_from_id(941237)
     else:
         raise NotImplementedError('Task not implemented: {:s}.'.format(task))
 
