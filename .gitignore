@@ -1,8 +1,6 @@
 /.idea/
 /data/
 /wandb/
-/out/tune/
 /iridis/
 __pycache__/
 latest_job.sh
-/out/interpretability/
