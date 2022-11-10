@@ -20,10 +20,11 @@ rc('text', usetex=True)
 
 class MilLucInterpretabilityStudy:
 
-    def __init__(self, device, dataset, model):
+    def __init__(self, device, dataset, model, show_outputs):
         self.device = device
         self.dataset = dataset
         self.model = model
+        self.show_outputs = show_outputs
 
     def create_reconstructions(self):
         reconstruction_dir = RECONSTRUCTION_DATA_DIR_FMT.format(self.dataset.cell_size, self.dataset.patch_size)
@@ -47,27 +48,31 @@ class MilLucInterpretabilityStudy:
             self.create_interpretation(idx, bag, target, bmd['id'])
 
     def create_interpretation_from_id(self, img_id):
+        print('Looking for image id: {:}'.format(img_id))
         for idx, bag_md in enumerate(self.dataset.bags_metadata):
             if bag_md['id'] == img_id:
+                print(' Found')
                 data = self.dataset[idx]
                 bmd = self.dataset.bags_metadata[idx]
                 bag, target = data[0], data[1]
-                self.create_interpretation(idx, bag, target, bmd['id'])
-                break
+                return self.create_interpretation(idx, bag, target, bmd['id'])
             else:
                 continue
+        print(' Not found')
 
     def create_interpretation(self, idx, bag, target, bag_id):
         save_path = "out/interpretability/{:}/{:}_interpretation.png".format(self.dataset.model_type, bag_id)
-        if os.path.exists(save_path):
-            return
 
-        bag_prediction, instance_predictions = self.model.forward_verbose(bag)
+        bag_prediction, patch_preds = self.model.forward_verbose(bag)
+        patch_preds = patch_preds.detach().cpu()
         # print('  Pred:', ['{:.3f}'.format(p) for p in bag_prediction])
         # print('Target:', ['{:.3f}'.format(t) for t in target])
 
-        max_abs_pred = max(abs(torch.min(instance_predictions).item()), abs(torch.max(instance_predictions).item()))
-        norm = plt.Normalize(-max_abs_pred, max_abs_pred)
+        # Work out max absolute prediction for each class, and create a normaliser for each class
+        max_abs_preds = [max(abs(torch.min(patch_preds[c]).item()),
+                             abs(torch.max(patch_preds[c]).item()))
+                         for c in range(7)]
+        norms = [plt.Normalize(-m, m) for m in max_abs_preds]
         cmaps = [mpl.colors.LinearSegmentedColormap.from_list("",
                                                               ["red", "lightgrey", self.dataset.target_to_rgb(clz)])
                  for clz in range(7)]
@@ -75,95 +80,120 @@ class MilLucInterpretabilityStudy:
         sat_img = self.dataset.get_sat_img(idx)
         mask_img = self.dataset.get_mask_img(idx)
         _, grid_ground_truth_coloured_mask = self._create_ground_truth_overall_mask(mask_img)
-        masks = [self._create_instance_mask(instance_predictions, i) for i in range(7)]
-        pred_masks = self._create_overall_mask(sat_img, instance_predictions, cmaps, norm)
-        pred_clz_mask, overall_colour_mask, overall_weighted_colour_mask, sat_img_with_overlay = pred_masks
+        pred_masks = self._create_overall_mask(sat_img, patch_preds, cmaps, norms)
+        pred_clz_mask, overall_colour_mask, overall_weighted_colour_mask, _ = pred_masks
 
-        clz_counts = Counter(pred_clz_mask.flatten().tolist()).most_common()
-        clz_order = [int(c[0]) for c in clz_counts]
+        # Can skip plotting if we're not showing the output and the file already exists
+        if self.show_outputs or not os.path.exists(save_path):
+            clz_counts = Counter(pred_clz_mask.flatten().tolist()).most_common()
+            clz_order = [int(c[0]) for c in clz_counts]
 
-        def format_axis(ax, title=None):
-            ax.set_axis_off()
-            ax.set_aspect('equal')
-            if title is not None:
-                ax.set_title(title, fontsize=16)
+            def format_axis(ax, title=None):
+                ax.set_axis_off()
+                ax.set_aspect('equal')
+                if title is not None:
+                    ax.set_title(title, fontsize=16)
 
-        fig, axes = plt.subplots(nrows=2, ncols=4, figsize=(12, 5))
-        axes[0][0].imshow(sat_img)
-        format_axis(axes[0][0], "Original Image")
+            fig, axes = plt.subplots(nrows=2, ncols=4, figsize=(12, 5))
+            axes[0][0].imshow(sat_img)
+            format_axis(axes[0][0], "Original Image")
 
-        axes[0][1].imshow(mask_img)
-        format_axis(axes[0][1], "Original Mask")
+            axes[0][1].imshow(mask_img)
+            format_axis(axes[0][1], "True Pixel Mask")
 
-        axes[0][2].imshow(grid_ground_truth_coloured_mask)
-        format_axis(axes[0][2], "Grid Mask")
+            # If grid size is > 1, then it's worth looking at the patch grid mask
+            #  Otherwise, when grid size = 1 (e.g., with UNet), output the unweighted predicted mask
+            if self.dataset.patch_details.grid_size > 1:
+                axes[0][2].imshow(grid_ground_truth_coloured_mask)
+                format_axis(axes[0][2], "True Patch Mask")
 
-        axes[0][3].imshow(overall_weighted_colour_mask)
-        format_axis(axes[0][3], "Predicted Mask")
-
-        for clz_idx in range(4):
-            axis = axes[1][clz_idx]
-            if clz_idx < len(clz_order):
-                clz = clz_order[clz_idx]
-                im = axis.imshow(masks[clz], cmap=cmaps[clz], norm=norm)
-                divider = make_axes_locatable(axis)
-                cax = divider.append_axes('right', size='5%', pad=0.05)
-                cbar = fig.colorbar(im, cax=cax, orientation='vertical', ticks=[-max_abs_pred, 0, max_abs_pred])
-                cbar.ax.set_yticklabels(['-ve', '0', '+ve'])
-                cbar.ax.tick_params(labelsize=14)
-                format_axis(axis, self.dataset.target_to_name(clz).replace('_', ' ').title())
+                axes[0][3].imshow(overall_weighted_colour_mask)
+                format_axis(axes[0][3], "Predicted Mask")
             else:
-                format_axis(axis, '')
+                axes[0][2].imshow(overall_weighted_colour_mask)
+                format_axis(axes[0][2], "Predicted Mask")
 
-        plt.tight_layout()
-        # plt.show()
-        fig.savefig(save_path, dpi=300, bbox_inches='tight', pad_inches=0.05)
-        plt.close(fig)
+                axes[0][3].imshow(overall_colour_mask)
+                format_axis(axes[0][3], "Predicted Mask (Unweighted)")
 
-    def _create_instance_mask(self, instance_predictions, clz):
-        grid_size = self.dataset.patch_details.grid_size
+            for clz_idx in range(4):
+                axis = axes[1][clz_idx]
+                if clz_idx < len(clz_order):
+                    clz = clz_order[clz_idx]
+                    im = axis.imshow(patch_preds[clz], cmap=cmaps[clz], norm=norms[clz])
+                    divider = make_axes_locatable(axis)
+                    cax = divider.append_axes('right', size='5%', pad=0.05)
+                    cbar = fig.colorbar(im, cax=cax, orientation='vertical',
+                                        ticks=[-max_abs_preds[clz], 0, max_abs_preds[clz]])
+                    cbar.ax.set_yticklabels(['-ve', '0', '+ve'])
+                    cbar.ax.tick_params(labelsize=14)
+                    format_axis(axis, self.dataset.target_to_name(clz).replace('_', ' ').title())
+                else:
+                    format_axis(axis, '')
 
-        mask = np.zeros((grid_size, grid_size))
-        for idx, instance_prediction in enumerate(instance_predictions[:, clz]):
-            row_idx = idx // grid_size
-            col_idx = idx % grid_size
-            mask[row_idx, col_idx] = instance_prediction
+            plt.tight_layout()
+            if self.show_outputs:
+                plt.show()
+            fig.savefig(save_path, dpi=300, bbox_inches='tight', pad_inches=0.05)
+            plt.close(fig)
 
-        return mask
+        return sat_img, mask_img, grid_ground_truth_coloured_mask, overall_colour_mask, overall_weighted_colour_mask
 
-    def _create_overall_mask(self, sat_img, instance_predictions, cmaps, norm):
-        grid_size = self.dataset.patch_details.grid_size
+    def _create_overall_mask(self, sat_img, patch_preds, cmaps, norms):
+        # Create mask of top clz and its weight for each pixel
+        _, grid_size, _ = patch_preds.shape
+        overall_weight_mask, overall_clz_mask = torch.max(patch_preds, dim=0)
 
-        overall_clz_mask = np.zeros((grid_size, grid_size))
-        overall_colour_mask = np.zeros((grid_size, grid_size, 3))
-        overall_weighted_colour_mask = np.zeros((grid_size, grid_size, 3))
-        for idx, cell_instance_predictions in enumerate(instance_predictions):
-            row_idx = idx // grid_size
-            col_idx = idx % grid_size
-            # Get the top predicted class for this cell
-            top_clz = torch.argmax(cell_instance_predictions).item()
+        # Create palette to map from clz to colours
+        clz_palette = self.dataset.create_clz_palette()
 
-            # Mask by class values
-            overall_clz_mask[row_idx, col_idx] = top_clz
+        # Create color mask from palette and clz mask
+        overall_colour_mask = Image.new('P', (grid_size, grid_size))
+        overall_colour_mask.putdata(torch.flatten(overall_clz_mask).numpy())
+        overall_colour_mask.putpalette(clz_palette, rawmode="RGB")
+        overall_colour_mask = overall_colour_mask.convert('RGB')
 
-            # Mask by colour
-            rgb = self.dataset.target_to_rgb(top_clz)
-            overall_colour_mask[row_idx, col_idx, 0] = rgb[0]
-            overall_colour_mask[row_idx, col_idx, 1] = rgb[1]
-            overall_colour_mask[row_idx, col_idx, 2] = rgb[2]
+        # Create weight palette
+        #  Each class is mapped to a different range
+        #    Clz 0 -> 0 to 35
+        #    Clz 1 -> 36 to 71
+        #    etc.
+        #  Each class range is then mapped to it's colour map
+        #  Max length of a palette is 768 (256 RGB colours), so with 7 classes, the max range is 36 (36 * 7 * 3 = 756)
+        weight_palette = []
+        for clz in range(7):
+            cmap = cmaps[clz]
+            for i in range(36):
+                val = cmap(i / 36)
+                color = [int(c * 255) for c in val[:3]]
+                weight_palette.extend(color)
 
-            # Mask by colour and weight
-            top_pred_val = cell_instance_predictions[top_clz].detach().item()
-            rgb = cmaps[top_clz](norm(top_pred_val))
-            overall_weighted_colour_mask[row_idx, col_idx, 0] = rgb[0]
-            overall_weighted_colour_mask[row_idx, col_idx, 1] = rgb[1]
-            overall_weighted_colour_mask[row_idx, col_idx, 2] = rgb[2]
+        # Normalise weight mask
+        #  Do for all classes first, then chose the correct normed value based on the selected class for each pixel
+        norm_overall_weight_masks = [norm(overall_weight_mask) for norm in norms]
+        norm_overall_weight_mask = np.zeros_like(overall_weight_mask)
+        for clz in range(7):
+            norm_overall_weight_mask = np.where(overall_clz_mask == clz,
+                                                norm_overall_weight_masks[clz],
+                                                norm_overall_weight_mask)
 
-        overlay = Image.fromarray(np.uint8(overall_colour_mask * 255), mode='RGB')
-        overlay = overlay.resize(sat_img.size, Image.NEAREST)
+        # Convert the weight mask to match the weight palette values
+        #  Convert to range (0 to 35) and round to nearest int
+        rounded_norm_overall_weight_mask = np.floor(norm_overall_weight_mask * 35).astype(int)
+        #  Add clz mask values (multiplied by 36 to map to range start values)
+        overall_weight_mask_p = rounded_norm_overall_weight_mask + (overall_clz_mask * 36).numpy()
+
+        # Create weighted color mask from palette and clz mask
+        overall_weighted_colour_mask = Image.new('P', (grid_size, grid_size))
+        overall_weighted_colour_mask.putdata(overall_weight_mask_p.flatten())
+        overall_weighted_colour_mask.putpalette(weight_palette, rawmode="RGB")
+        overall_weighted_colour_mask = overall_weighted_colour_mask.convert('RGB')
+
+        overlay = overall_colour_mask.resize(sat_img.size, Image.NEAREST)
         overlay.putalpha(int(0.5 * 255))
         sat_img_with_overlay = sat_img.convert('RGBA')
         sat_img_with_overlay.paste(overlay, (0, 0), overlay)
+
         return overall_clz_mask, overall_colour_mask, overall_weighted_colour_mask, sat_img_with_overlay
 
     def _create_ground_truth_overall_mask(self, original_mask):

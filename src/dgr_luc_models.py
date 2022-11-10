@@ -1,5 +1,8 @@
+from abc import ABC
+
 import torch
 import wandb
+from overrides import overrides
 from torch import nn
 from torchvision.models import resnet18, ResNet18_Weights
 
@@ -7,6 +10,7 @@ from bonfire.model import aggregator as agg
 from bonfire.model import models
 from bonfire.model import modules as mod
 from dgr_luc_dataset import DgrLucDataset
+from dgr_luc_unet import DgrUNet
 
 
 def get_model_param(key):
@@ -22,6 +26,8 @@ def get_model_clz(model_type):
         return DgrInstanceSpaceNNLarge
     elif 'resnet' in model_type:
         return DgrResNet18
+    elif 'unet' in model_type:
+        return DgrUNet
     raise ValueError('No model class found for model type {:s}'.format(model_type))
 
 
@@ -37,6 +43,26 @@ DGR_D_CONV_OUT_LARGE = 5600
 DGR_D_ENC = 128
 DGR_DS_ENC_HID = (512,)
 DGR_DS_AGG_HID = (64,)
+
+
+class DgrSceneToPatchNN(models.InstanceSpaceNN, ABC):
+
+    @overrides
+    def _internal_forward(self, bags):
+        bag_predictions, bag_instance_predictions = super()._internal_forward(bags)
+        bag_patch_instance_predictions = []
+        for ins_preds in bag_instance_predictions:
+            # Make clz first dim rather than last
+            patch_preds = ins_preds.swapaxes(0, 1)
+
+            # TODO assumes square image
+            # Reshape to grid
+            grid_size = int(patch_preds.shape[1] ** 0.5)
+            patch_preds = patch_preds.reshape(-1, grid_size, grid_size)
+
+            # Add to overall list
+            bag_patch_instance_predictions.append(patch_preds)
+        return bag_predictions, bag_patch_instance_predictions
 
 
 class DgrEncoderSmall(nn.Module):
@@ -91,7 +117,7 @@ class DgrEncoderLarge(nn.Module):
         return x
 
 
-class DgrInstanceSpaceNNSmall(models.InstanceSpaceNN):
+class DgrInstanceSpaceNNSmall(DgrSceneToPatchNN):
 
     def __init__(self, device):
         dropout = get_model_param("dropout")
@@ -101,7 +127,7 @@ class DgrInstanceSpaceNNSmall(models.InstanceSpaceNN):
         super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims, encoder, aggregator)
 
 
-class DgrInstanceSpaceNNMedium(models.InstanceSpaceNN):
+class DgrInstanceSpaceNNMedium(DgrSceneToPatchNN):
 
     def __init__(self, device):
         dropout = get_model_param("dropout")
@@ -111,7 +137,8 @@ class DgrInstanceSpaceNNMedium(models.InstanceSpaceNN):
         super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims, encoder, aggregator)
 
 
-class DgrInstanceSpaceNNLarge(models.InstanceSpaceNN):
+
+class DgrInstanceSpaceNNLarge(DgrSceneToPatchNN):
 
     def __init__(self, device):
         dropout = get_model_param("dropout")

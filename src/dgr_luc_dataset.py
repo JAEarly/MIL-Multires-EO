@@ -76,12 +76,16 @@ def get_patch_details(model_type):
         return PatchDetails(24, 102)
     elif model_type == "resnet":
         return PatchDetails(1, 224)
+    elif model_type == "unet224":
+        return PatchDetails(1, 224)
+    elif model_type == "unet448":
+        return PatchDetails(1, 448)
     else:
         raise ValueError("No patch details registered for model type {:s}".format(model_type))
 
 
 def get_dataset_list():
-    return [DgrLucDatasetResNet,
+    return [DgrLucDatasetResNet, DgrLucDatasetUNet224, DgrLucDatasetUNet448,
             DgrLucDataset8Small, DgrLucDataset8Medium, DgrLucDataset8Large,
             DgrLucDataset16Small, DgrLucDataset16Medium, DgrLucDataset16Large,
             DgrLucDataset24Small, DgrLucDataset24Medium, DgrLucDataset24Large]
@@ -367,6 +371,11 @@ class DgrLucDataset(MilDataset, ABC):
         return rgb
 
     @classmethod
+    def create_clz_palette(cls):
+        clz_palette = np.asarray([cls.target_to_rgb(clz) for clz in range(7)]) * 255
+        return clz_palette.flatten().tolist()
+
+    @classmethod
     def rgb_to_target(cls, r, g, b):
         row = cls.class_dict_df.loc[(cls.class_dict_df['r'] == r) &
                                     (cls.class_dict_df['g'] == g) &
@@ -551,6 +560,18 @@ class DgrLucDataset24Large(DgrLucDataset):
 
 class DgrLucDatasetResNet(DgrLucDataset):
     model_type = "resnet"
+    name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
+
+
+class DgrLucDatasetUNet224(DgrLucDataset):
+    model_type = "unet224"
+    name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
+
+
+class DgrLucDatasetUNet448(DgrLucDataset):
+    model_type = "unet448"
     name = "dgr_luc_" + model_type
     patch_details = get_patch_details(model_type)
 
