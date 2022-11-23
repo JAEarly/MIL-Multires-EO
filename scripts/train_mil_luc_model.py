@@ -7,6 +7,7 @@ from bonfire.util import get_device
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
 from dgr_luc_dataset import get_dataset_clz, get_model_type_list
 from dgr_luc_models import get_model_clz
+from dgr_luc_multires_trainer import MultiResTrainer
 
 device = get_device()
 model_type_choices = get_model_type_list()
@@ -39,6 +40,10 @@ def run_training():
     if 'resnet' in model_type or 'unet' in model_type:
         trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, project_name=project_name,
                                            dataloader_func=create_normal_dataloader, group_name=group_name)
+    elif 'multi_res' in model_type:
+        trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, project_name=project_name,
+                                           dataloader_func=create_normal_dataloader, group_name=group_name,
+                                           trainer_clz=MultiResTrainer)
     else:
         trainer = create_trainer_from_clzs(device, model_clz, dataset_clz,
                                            project_name=project_name, group_name=group_name)
