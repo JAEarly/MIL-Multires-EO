@@ -140,7 +140,6 @@ class DgrInstanceSpaceNNMedium(DgrSceneToPatchNN):
         super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims, encoder, aggregator)
 
 
-
 class DgrInstanceSpaceNNLarge(DgrSceneToPatchNN):
 
     def __init__(self, device):

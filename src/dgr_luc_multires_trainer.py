@@ -43,32 +43,46 @@ class MultiResTrainer(Trainer):
         return epoch_train_metrics, epoch_val_metrics
 
     @classmethod
-    @overrides
-    def eval_model(cls, model, dataloader, bag_metrics=(), instance_metrics=(), verbose=False):
+    def get_model_outputs_for_dataset(cls, model, dataloader, lim=None):
         # Iterate through data loader and gather preds and targets
         all_preds = []
         all_targets = []
         all_instance_preds = []
         all_instance_targets = []
-        labels = list(range(model.n_classes))
+        all_mask_paths = []
         model.eval()
+        n = 0
         with torch.no_grad():
             for data in tqdm(dataloader, desc='Evaluating', leave=False):
-                bags, targets, instance_targets = data[0], data[1], data[2]
+                bags, targets, instance_targets, mask_path = data[0], data[1], data[2], data[3]
                 bag_pred, instance_pred = model.forward_verbose(bags)
                 all_preds.append(bag_pred.cpu())
                 all_targets.append(targets.cpu())
+                all_mask_paths.append(mask_path[0])
 
                 instance_pred = instance_pred[0]
                 if instance_pred is not None:
                     all_instance_preds.append([i.squeeze().cpu() for i in instance_pred])
-                all_instance_targets.append(instance_targets.squeeze().cpu())
+                all_instance_targets.append(instance_targets)
+                n += 1
+                if lim is not None and n >= lim:
+                    break
+        all_preds = torch.cat(all_preds)
+        all_targets = torch.cat(all_targets)
+        return all_preds, all_targets, all_instance_preds, all_instance_targets, all_mask_paths
+
+    @classmethod
+    @overrides
+    def eval_model(cls, model, dataloader, bag_metrics=(), instance_metrics=(), verbose=False):
+        # Iterate through data loader and gather preds and targets
+        model.eval()
+        model_outs = cls.get_model_outputs_for_dataset(model, dataloader)
+        all_preds, all_targets, all_instance_preds, all_instance_targets = model_outs
+        labels = list(range(model.n_classes))
 
         # Calculate bag results
         bag_results = None
         if bag_metrics:
-            all_preds = torch.cat(all_preds)
-            all_targets = torch.cat(all_targets)
             bag_results = [bm.calculate_metric(all_preds, all_targets, labels) for bm in bag_metrics]
             if verbose:
                 for bag_result in bag_results:

@@ -148,6 +148,12 @@ class DgrMultiResNN(MultipleInstanceNN):
             s2_bag_pred, s2_inst_preds = self.s2_aggregator(s2_embeddings)
             sm_bag_pred, sm_inst_preds = self.sm_aggregator(sm_embeddings)
 
+            # Reshape instance preds to grid
+            s0_inst_preds = self._reshape_instance_preds(s0_inst_preds)
+            s1_inst_preds = self._reshape_instance_preds(s1_inst_preds)
+            s2_inst_preds = self._reshape_instance_preds(s2_inst_preds)
+            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds)
+
             # Update bag outputs
             bag_predictions[i, 0] = s0_bag_pred
             bag_predictions[i, 1] = s1_bag_pred
@@ -164,3 +170,11 @@ class DgrMultiResNN(MultipleInstanceNN):
             all_instance_predictions.append(bag_instance_predictions)
 
         return bag_predictions, all_instance_predictions
+
+    @staticmethod
+    def _reshape_instance_preds(ins_preds):
+        # Class first
+        ins_preds = ins_preds.swapaxes(0, 1)
+        # Reshape to grid; assumes square grid
+        grid_size = int(ins_preds.shape[1] ** 0.5)
+        return ins_preds.reshape(-1, grid_size, grid_size)

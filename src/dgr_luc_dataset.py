@@ -42,7 +42,7 @@ class PatchDetails:
 
     def _calculate_cell_size(self):
         if self.orig_img_size % self.grid_size != 0:
-            raise ValueError("Invalid grid size. Must be a factor of {:d}".format(self.orig_img_size))
+            print("WARNING: Grid size {:d} is not a factor of {:d}".format(self.grid_size, self.orig_img_size))
         return self.orig_img_size // self.grid_size
 
     def _calculate_num_patches(self):
@@ -104,9 +104,9 @@ def get_dataset_clz(model_type):
             return dataset_clz
 
 
-def setup(model_type):
+def setup(patch_details):
     metadata_df = _load_metadata_df()
-    _setup_patch_csv(metadata_df, model_type)
+    _setup_patch_csv(metadata_df, patch_details)
     # _calculate_dataset_normalisation(metadata_df)
     # _visualise_data(metadata_df)
     # _generate_per_class_coverage(metadata_df)
@@ -143,13 +143,11 @@ def _load_class_dict_df():
     return class_dict_df
 
 
-def _setup_patch_csv(metadata_df, model_type):
+def _setup_patch_csv(metadata_df, patch_details):
     """
     Extract patches from the training images.
     :param metadata_df: Dataframe of image metadata.
     """
-    patch_details = get_patch_details(model_type)
-
     print('Setting up patch csv')
     print(' Cell size: {:d}'.format(patch_details.cell_size))
     print(' Patch size: {:d}'.format(patch_details.patch_size))
@@ -349,23 +347,27 @@ class DgrLucDataset(MilDataset, ABC):
 
     @classmethod
     def load_dgr_bags(cls):
-        patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(cls.patch_details.cell_size))
         coverage_df = cls.load_per_class_coverage()
         metadata_df = _load_metadata_df()
 
-        # Parse instance targets
+        bags = metadata_df['sat_image_path'].to_numpy()
+        bags_metadata = np.asarray([{'id': id_} for id_ in metadata_df['image_id'].tolist()])
+        instance_targets = cls._parse_instance_targets(cls.patch_details.cell_size)
+        targets = coverage_df[cls.get_clz_names()].to_numpy()
+        mask_paths = metadata_df['mask_path'].to_numpy()
+
+        return bags, targets, instance_targets, bags_metadata, mask_paths
+
+    @classmethod
+    def _parse_instance_targets(cls, cell_size):
+        patches_df = pd.read_csv(PATCH_DATA_CSV_FMT.format(cell_size))
+        coverage_df = cls.load_per_class_coverage()
         instance_targets = []
         for image_id in coverage_df['image_id']:
             image_patch_data = patches_df.loc[patches_df['image_id'] == image_id]
             bag_instance_targets = image_patch_data[cls.get_clz_names()].to_numpy()
             instance_targets.append(bag_instance_targets)
-
-        bags = metadata_df['sat_image_path'].to_numpy()
-        bags_metadata = np.asarray([{'id': id_} for id_ in metadata_df['image_id'].tolist()])
-        targets = coverage_df[cls.get_clz_names()].to_numpy()
-        mask_paths = metadata_df['mask_path'].to_numpy()
-
-        return bags, targets, instance_targets, bags_metadata, mask_paths
+        return torch.as_tensor(np.asarray(instance_targets))
 
     @classmethod
     def target_to_rgb(cls, target):
@@ -566,6 +568,22 @@ class DgrLucDatasetMultiRes(DgrLucDataset):
     name = "dgr_luc_" + model_type
     patch_details = get_patch_details(model_type)
 
+    # TODO what's going on with 304 vs 306 and are 76 and 152 right? (original 8 and 304)
+    #  Currently using a patch size of 306 (304?)
+    #  Need to also load grid sizes of 152 and 76
+    # Extract S1 instances - Cell size 152 x 152 px; 16 x 16 grid
+    #  Resize to 76 x 76; Eff res 1,216 * 1,216 px (24.7%)
+    # Extract S2 instances - Cell size 76 x 76 px; 32 x 32 grid
+    #  No resizing needed; Eff res 2432 x 2432 px (98.7%)
+
+    @classmethod
+    @overrides
+    def load_dgr_bags(cls):
+        bags, targets, instance_targets, bags_metadata, mask_paths = super().load_dgr_bags()
+        t = [instance_targets, cls._parse_instance_targets(153), cls._parse_instance_targets(76)]
+        multires_targets = torch.cat(t, dim=1)
+        return bags, targets, multires_targets, bags_metadata, mask_paths
+
 
 class DgrLucDatasetResNet(DgrLucDataset):
     model_type = "resnet"
@@ -586,4 +604,4 @@ class DgrLucDatasetUNet448(DgrLucDataset):
 
 
 if __name__ == "__main__":
-    setup("8_small")
+    setup(PatchDetails(32, 76))
