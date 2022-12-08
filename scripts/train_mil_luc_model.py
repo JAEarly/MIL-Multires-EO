@@ -37,10 +37,10 @@ def run_training():
 
     project_name = "Train_MIL_LUC"
     group_name = "Train_{:s}".format(model_type)
-    if 'resnet' in model_type or 'unet' in model_type:
+    if 'resnet' in model_type or 'unet' in model_type or model_type == 'multi_res_single_out':
         trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, project_name=project_name,
                                            dataloader_func=create_normal_dataloader, group_name=group_name)
-    elif 'multi_res' in model_type:
+    elif model_type == 'multi_res_multi_out':
         trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, project_name=project_name,
                                            dataloader_func=create_normal_dataloader, group_name=group_name,
                                            trainer_clz=MultiResTrainer)

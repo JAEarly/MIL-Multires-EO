@@ -51,7 +51,12 @@ training:
     wd: 1.e-5
     dropout: 0.3
     agg_func: mean
-  multi_res:
+  multi_res_single_out:
+    lr: 1.e-4
+    wd: 1.e-5
+    dropout: 0.4
+    agg_func: mean
+  multi_res_multi_out:
     lr: 1.e-4
     wd: 1.e-5
     dropout: 0.4

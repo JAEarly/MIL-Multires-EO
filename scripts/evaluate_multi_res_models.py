@@ -93,7 +93,7 @@ def eval_complete(trainer, model, train_dataloader, val_dataloader, test_dataloa
 
 def eval_model(trainer, model, dataloader, verbose=False):
     # Iterate through data loader and gather preds and targets
-    model_outs = trainer.get_model_outputs_for_dataset(model, dataloader, lim=50)
+    model_outs = trainer.get_model_outputs_for_dataset(model, dataloader, lim=None)
     all_preds, all_targets, all_instance_preds, all_instance_targets, all_mask_paths = model_outs
     labels = list(range(model.n_classes))
 

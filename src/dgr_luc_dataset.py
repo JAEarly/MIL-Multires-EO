@@ -74,7 +74,7 @@ def get_patch_details(model_type):
         return PatchDetails(24, 56)
     elif model_type == "24_large":
         return PatchDetails(24, 102)
-    elif model_type == "multi_res":
+    elif "multi_res" in model_type:
         return PatchDetails(8, 304)
     elif model_type == "resnet":
         return PatchDetails(1, 224)
@@ -91,7 +91,7 @@ def get_dataset_list():
             DgrLucDataset8Small, DgrLucDataset8Medium, DgrLucDataset8Large,
             DgrLucDataset16Small, DgrLucDataset16Medium, DgrLucDataset16Large,
             DgrLucDataset24Small, DgrLucDataset24Medium, DgrLucDataset24Large,
-            DgrLucDatasetMultiRes]
+            DgrLucDatasetMultiResSingleOut, DgrLucDatasetMultiResMultiOut]
 
 
 def get_model_type_list():
@@ -563,8 +563,14 @@ class DgrLucDataset24Large(DgrLucDataset):
     patch_details = get_patch_details(model_type)
 
 
-class DgrLucDatasetMultiRes(DgrLucDataset):
-    model_type = "multi_res"
+class DgrLucDatasetMultiResSingleOut(DgrLucDataset):
+    model_type = "multi_res_single_out"
+    name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
+
+
+class DgrLucDatasetMultiResMultiOut(DgrLucDataset):
+    model_type = "multi_res_multi_out"
     name = "dgr_luc_" + model_type
     patch_details = get_patch_details(model_type)
 

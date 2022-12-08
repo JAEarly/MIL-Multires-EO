@@ -10,7 +10,7 @@ from bonfire.model import aggregator as agg
 from bonfire.model import models
 from bonfire.model import modules as mod
 from dgr_luc_dataset import DgrLucDataset
-from dgr_luc_multires_models import DgrMultiResNN
+from dgr_luc_multires_models import DgrMultiResSingleOutNN, DgrMultiResMultiOutNN
 from dgr_luc_unet import DgrUNet
 
 
@@ -29,8 +29,10 @@ def get_model_clz(model_type):
         return DgrResNet18
     elif 'unet' in model_type:
         return DgrUNet
-    elif 'multi_res' in model_type:
-        return DgrMultiResNN
+    elif model_type == 'multi_res_single_out':
+        return DgrMultiResSingleOutNN
+    elif model_type == 'multi_res_multi_out':
+        return DgrMultiResSingleOutNN
     raise ValueError('No model class found for model type {:s}'.format(model_type))
 
 
