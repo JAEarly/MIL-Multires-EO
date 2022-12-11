@@ -43,7 +43,7 @@ def run_tuning():
     config = parse_yaml_config(config_path)
     study_name = 'Tune_{:s}'.format(model_type)
     project_name = 'Tune_MIL_LUC'
-    if 'multi_res' in model_type:
+    if model_type == 'multi_res_multi_out':
         tuner = create_tuner_from_config(device, model_clz, dataset_clz, config, study_name, n_trials,
                                          dataloader_func=create_normal_dataloader, project_name=project_name,
                                          trainer_clz=MultiResTrainer)
