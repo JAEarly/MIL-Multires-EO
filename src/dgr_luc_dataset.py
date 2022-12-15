@@ -568,6 +568,14 @@ class DgrLucDatasetMultiResSingleOut(DgrLucDataset):
     name = "dgr_luc_" + model_type
     patch_details = get_patch_details(model_type)
 
+    @classmethod
+    @overrides
+    def load_dgr_bags(cls):
+        # Replace default instance targets with smallest patch size (scale=m)
+        bags, targets, _, bags_metadata, mask_paths = super().load_dgr_bags()
+        instance_targets = cls._parse_instance_targets(76)
+        return bags, targets, instance_targets, bags_metadata, mask_paths
+
 
 class DgrLucDatasetMultiResMultiOut(DgrLucDataset):
     model_type = "multi_res_multi_out"

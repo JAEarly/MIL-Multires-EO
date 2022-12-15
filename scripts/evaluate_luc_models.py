@@ -85,7 +85,7 @@ def evaluate(model_type, n_repeats, trainer, random_state=5):
         model = load_model(device, trainer.dataset_clz.name, trainer.model_clz, modifier=r)
 
         results_list = eval_complete(model_type, trainer.metric_clz, model,
-                                     train_dataloader, val_dataloader, test_dataloader, verbose=False)
+                                     train_dataloader, val_dataloader, test_dataloader, verbose=False, lim=None)
 
         train_bag_res, train_inst_res, val_bag_res, val_inst_res, test_bag_res, test_inst_res = results_list
         bag_results_arr[r, :] = [train_bag_res[0], val_bag_res[0], test_bag_res[0]]
@@ -99,14 +99,18 @@ def evaluate(model_type, n_repeats, trainer, random_state=5):
     return bag_results_arr, grid_seg_results_arr, orig_seg_results_arr
 
 
-def eval_complete(model_type, bag_metric, model, train_dataloader, val_dataloader, test_dataloader, verbose=False):
-    train_bag_res, train_inst_res = eval_model(model_type, bag_metric, model, train_dataloader, verbose=verbose)
-    val_bag_res, val_inst_res = eval_model(model_type, bag_metric, model, val_dataloader, verbose=verbose)
-    test_bag_res, test_inst_res = eval_model(model_type, bag_metric, model, test_dataloader, verbose=verbose)
+def eval_complete(model_type, bag_metric, model, train_dataloader, val_dataloader, test_dataloader,
+                  verbose=False, lim=None):
+    train_bag_res, train_inst_res = eval_model(model_type, bag_metric, model, train_dataloader,
+                                               verbose=verbose, lim=lim)
+    val_bag_res, val_inst_res = eval_model(model_type, bag_metric, model, val_dataloader,
+                                           verbose=verbose, lim=lim)
+    test_bag_res, test_inst_res = eval_model(model_type, bag_metric, model, test_dataloader,
+                                             verbose=verbose, lim=lim)
     return train_bag_res, train_inst_res, val_bag_res, val_inst_res, test_bag_res, test_inst_res
 
 
-def eval_model(model_type, bag_metric, model, dataloader, verbose=False):
+def eval_model(model_type, bag_metric, model, dataloader, verbose=False, lim=None):
     # Iterate through data loader and gather preds and targets
     all_preds = []
     all_targets = []
@@ -115,6 +119,7 @@ def eval_model(model_type, bag_metric, model, dataloader, verbose=False):
     all_mask_paths = []
     labels = list(range(model.n_classes))
     model.eval()
+    n = 0
     with torch.no_grad():
         for data in tqdm(dataloader, desc='Getting model predictions', leave=False):
             bags, targets, instance_targets, mask_path = data[0], data[1], data[2], data[3]
@@ -126,6 +131,9 @@ def eval_model(model_type, bag_metric, model, dataloader, verbose=False):
             if instance_pred is not None:
                 all_instance_preds.append(instance_pred.squeeze().cpu())
             all_instance_targets.append(instance_targets.squeeze().cpu())
+            n += 1
+            if lim is not None and n >= lim:
+                break
 
     # Calculate bag results
     all_preds = torch.cat(all_preds)
@@ -148,10 +156,10 @@ def eval_model(model_type, bag_metric, model, dataloader, verbose=False):
             # Wrangle targets to grid shape
             #  Swap class and instance axes
             #  Reshape to match the image grid
-            patch_details = get_patch_details(model_type)
+            grid_size = int(all_instance_targets.shape[1] ** 0.5)
             grid_targets = all_instance_targets\
                 .swapaxes(1, 2)\
-                .reshape(-1, len(labels), patch_details.grid_size, patch_details.grid_size)
+                .reshape(all_instance_targets.shape[0], len(labels), grid_size, grid_size)
             grid_results = evaluate_iou_grid(all_instance_preds, grid_targets, labels)
             seg_results = evaluate_iou_segmentation(dataloader.dataset, all_instance_preds, labels, all_mask_paths)
 
