@@ -52,7 +52,7 @@ def run_evaluation():
         training_config = parse_training_config(config['training'], model_type)
         wandb.config.update(training_config, allow_val_change=True)
 
-        if 'resnet' in model_type or 'unet' in model_type:
+        if 'resnet' in model_type or 'unet' in model_type or model_type == 'multi_res_single_out':
             trainer = create_trainer_from_clzs(device, model_clz, dataset_clz, dataloader_func=create_normal_dataloader)
         else:
             trainer = create_trainer_from_clzs(device, model_clz, dataset_clz)
