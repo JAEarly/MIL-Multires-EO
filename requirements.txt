@@ -16,3 +16,4 @@ torch
 torchvision
 tqdm
 wandb
+scienceplots
