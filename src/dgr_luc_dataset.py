@@ -35,24 +35,38 @@ class PatchDetails:
         self.cell_size = self._calculate_cell_size()
         # Total number of patches that will be extracted from each image (size of grid squared)
         self.num_patches = self._calculate_num_patches()
-        # Effective resolution after extracting and resizing cells
-        self.effective_resolution = self._calculate_effective_resolution()
+        # Effective resolution after extracting cells
+        self.effective_cell_resolution = self._calculate_effective_cell_resolution()
+        # Effective resolution after extracting and resizing cells (to get patches)
+        self.effective_patch_resolution = self._calculate_effective_patch_resolution()
         # Scale of effective resolution compared to original resolution
         self.scale = self._calculate_scale()
+        # Check values are okay
+        self._check_valid()
+
+    def _check_valid(self):
+        if self.grid_size * self.patch_size > self.orig_img_size:
+            raise ValueError(
+                'Cannot use grid_size {:d} and patch_size {:d} as effive patch resolution is larger than the original'
+                'image {:d} > {:d}'
+                .format(self.grid_size, self.patch_size,self.effective_patch_resolution, self.orig_img_size)
+            )
 
     def _calculate_cell_size(self):
-        if self.orig_img_size % self.grid_size != 0:
-            print("WARNING: Grid size {:d} is not a factor of {:d}".format(self.grid_size, self.orig_img_size))
+        # Calculate largest possible cell size (whole number) at scale of the original image
         return self.orig_img_size // self.grid_size
 
     def _calculate_num_patches(self):
         return int(self.grid_size ** 2)
 
-    def _calculate_effective_resolution(self):
+    def _calculate_effective_cell_resolution(self):
+        return self.grid_size * self.cell_size
+
+    def _calculate_effective_patch_resolution(self):
         return self.grid_size * self.patch_size
 
     def _calculate_scale(self):
-        return (self.effective_resolution ** 2) / (self.orig_img_size ** 2)
+        return (self.effective_patch_resolution ** 2) / (self.orig_img_size ** 2)
 
 
 def get_patch_details(model_type):
@@ -74,6 +88,10 @@ def get_patch_details(model_type):
         return PatchDetails(24, 56)
     elif model_type == "24_large":
         return PatchDetails(24, 102)
+    elif model_type == "32_small":
+        return PatchDetails(32, 28)
+    elif model_type == "32_medium":
+        return PatchDetails(32, 56)
     elif "multi_res" in model_type:
         return PatchDetails(8, 304)
     elif model_type == "resnet":
@@ -91,6 +109,7 @@ def get_dataset_list():
             DgrLucDataset8Small, DgrLucDataset8Medium, DgrLucDataset8Large,
             DgrLucDataset16Small, DgrLucDataset16Medium, DgrLucDataset16Large,
             DgrLucDataset24Small, DgrLucDataset24Medium, DgrLucDataset24Large,
+            DgrLucDataset32Small, DgrLucDataset32Medium,
             DgrLucDatasetMultiResSingleOut, DgrLucDatasetMultiResMultiOut]
 
 
@@ -145,14 +164,15 @@ def _load_class_dict_df():
 
 def _setup_patch_csv(metadata_df, patch_details):
     """
-    Extract patches from the training images.
+    Extract cell labels from the training images.
     :param metadata_df: Dataframe of image metadata.
     """
     print('Setting up patch csv')
     print(' Cell size: {:d}'.format(patch_details.cell_size))
     print(' Patch size: {:d}'.format(patch_details.patch_size))
     print(' {:d} patches per image'.format(patch_details.num_patches))
-    print(' {:d} effective new size'.format(patch_details.effective_resolution))
+    print(' {:d} effective cell resolution'.format(patch_details.effective_cell_resolution))
+    print(' {:d} effective patch resolution'.format(patch_details.effective_patch_resolution))
 
     all_patch_data = []
     # Loop over all the images
@@ -161,6 +181,8 @@ def _setup_patch_csv(metadata_df, patch_details):
         image_id = metadata_df['image_id'][i]
         mask_path = metadata_df['mask_path'][i]
         mask_img = Image.open(mask_path)
+        mask_img.thumbnail((patch_details.effective_cell_resolution, patch_details.effective_cell_resolution),
+                           resample=Image.Resampling.NEAREST)
         mask_img_arr = np.array(mask_img)
 
         # Iterate through each cell in the grid
@@ -181,7 +203,9 @@ def _setup_patch_csv(metadata_df, patch_details):
                     single_mask = _make_single_target_mask(patch_mask_binary, target)
                     percentage_cover = len(single_mask.nonzero()) / single_mask.numel()
                     patch_targets.append(percentage_cover)
-                assert abs(sum(patch_targets) - 1) < 1e-6
+                if abs(sum(patch_targets) - 1) > 1e-6:
+                    raise AssertionError("Patch targets don't sum to one (within reasonable error): {:} {:} {:} {:} {:}"
+                                         .format(image_id, i_x, i_y, patch_targets, abs(sum(patch_targets) - 1)))
 
                 patch_data = [image_id, i_x, i_y] + patch_targets
                 all_patch_data.append(patch_data)
@@ -210,8 +234,9 @@ def _calculate_dataset_normalisation(metadata_df):
 
 def make_binary_mask(mask):
     # TODO technically this is a thresholded mask; binary is a bit misleading.
-    binary_mask = torch.zeros_like(torch.as_tensor(mask))
-    binary_mask[mask > 128] = 1
+    mask_tensor = torch.as_tensor(mask)
+    binary_mask = torch.zeros_like(mask_tensor)
+    binary_mask[mask_tensor > 128] = 1
     return binary_mask
 
 
@@ -482,9 +507,10 @@ class DgrLucDataset(MilDataset, ABC):
         # Load original satellite and mask images
         sat_path = self.bags[bag_idx]
 
-        # Resize to new target resolution
+        # Resize to effective patch resolution before extracting
         sat_img = Image.open(sat_path)
-        sat_img.thumbnail((self.patch_details.effective_resolution, self.patch_details.effective_resolution))
+        sat_img.thumbnail((self.patch_details.effective_patch_resolution,
+                           self.patch_details.effective_patch_resolution))
         sat_img_arr = np.array(sat_img)
 
         # Iterate through each cell in the grid
@@ -563,6 +589,18 @@ class DgrLucDataset24Large(DgrLucDataset):
     patch_details = get_patch_details(model_type)
 
 
+class DgrLucDataset32Small(DgrLucDataset):
+    model_type = "32_small"
+    name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
+
+
+class DgrLucDataset32Medium(DgrLucDataset):
+    model_type = "32_medium"
+    name = "dgr_luc_" + model_type
+    patch_details = get_patch_details(model_type)
+
+
 class DgrLucDatasetMultiResSingleOut(DgrLucDataset):
     model_type = "multi_res_single_out"
     name = "dgr_luc_" + model_type
@@ -582,17 +620,10 @@ class DgrLucDatasetMultiResMultiOut(DgrLucDataset):
     name = "dgr_luc_" + model_type
     patch_details = get_patch_details(model_type)
 
-    # TODO what's going on with 304 vs 306 and are 76 and 152 right? (original 8 and 304)
-    #  Currently using a patch size of 306 (304?)
-    #  Need to also load grid sizes of 152 and 76
-    # Extract S1 instances - Cell size 152 x 152 px; 16 x 16 grid
-    #  Resize to 76 x 76; Eff res 1,216 * 1,216 px (24.7%)
-    # Extract S2 instances - Cell size 76 x 76 px; 32 x 32 grid
-    #  No resizing needed; Eff res 2432 x 2432 px (98.7%)
-
     @classmethod
     @overrides
     def load_dgr_bags(cls):
+        # Also load targets for cell sizes 153 and 76 for scales s=1 and s=2 (s=m)
         bags, targets, instance_targets, bags_metadata, mask_paths = super().load_dgr_bags()
         t = [instance_targets, cls._parse_instance_targets(153), cls._parse_instance_targets(76)]
         multires_targets = torch.cat(t, dim=1)
@@ -618,4 +649,4 @@ class DgrLucDatasetUNet448(DgrLucDataset):
 
 
 if __name__ == "__main__":
-    setup(PatchDetails(32, 76))
+    setup(PatchDetails(32, 56))

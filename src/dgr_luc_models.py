@@ -32,7 +32,7 @@ def get_model_clz(model_type):
     elif model_type == 'multi_res_single_out':
         return DgrMultiResSingleOutNN
     elif model_type == 'multi_res_multi_out':
-        return DgrMultiResSingleOutNN
+        return DgrMultiResMultiOutNN
     raise ValueError('No model class found for model type {:s}'.format(model_type))
 
 

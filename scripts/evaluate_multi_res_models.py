@@ -28,7 +28,7 @@ def run_evaluation():
     wandb.init()
 
     n_repeats = parse_args()
-    model_type = "multi_res"
+    model_type = "multi_res_multi_out"
     n_scales = 4  # (0, 1, 2, m)
 
     # print('Getting results for dataset {:s}'.format(dataset_name))
