@@ -24,6 +24,8 @@ def get_model_clz(model_type):
     elif 'medium' in model_type:
         return DgrInstanceSpaceNNMedium
     elif 'large' in model_type:
+        if model_type == '32_large':
+            return DgrInstanceSpaceNNLarge2
         return DgrInstanceSpaceNNLarge
     elif 'resnet' in model_type:
         return DgrResNet18
@@ -45,8 +47,8 @@ def get_n_params(model_type):
 DGR_D_CONV_OUT_SMALL = 1200
 DGR_D_CONV_OUT_MEDIUM = 6912
 DGR_D_CONV_OUT_LARGE = 5600
-DGR_D_ENC = 128
 DGR_DS_ENC_HID = (512,)
+DGR_D_ENC = 128
 DGR_DS_AGG_HID = (64,)
 
 
@@ -122,6 +124,28 @@ class DgrEncoderLarge(nn.Module):
         return x
 
 
+class DgrEncoderLarge2(nn.Module):
+    """
+    Version of DgrEncoderLarge that uses 76 x 76 patches rather than 102 x 102.
+    """
+
+    def __init__(self, dropout):
+        super().__init__()
+        conv1 = mod.ConvBlock(c_in=3, c_out=36, kernel_size=4, stride=1, padding=0)
+        conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
+        conv3 = mod.ConvBlock(c_in=48, c_out=56, kernel_size=3, stride=1, padding=0)
+        self.fe = nn.Sequential(conv1, conv2, conv3)
+        # This is the change to DgrEncoderLarge: conv output is 2744 rather than 5600 as the input images are smaller
+        self.fc_stack = mod.FullyConnectedStack(2744, DGR_DS_ENC_HID, DGR_D_ENC,
+                                                final_activation_func=None, dropout=dropout)
+
+    def forward(self, instances):
+        x = self.fe(instances)
+        x = x.view(x.size(0), -1)
+        x = self.fc_stack(x)
+        return x
+
+
 class DgrInstanceSpaceNNSmall(DgrSceneToPatchNN):
 
     def __init__(self, device):
@@ -148,6 +172,21 @@ class DgrInstanceSpaceNNLarge(DgrSceneToPatchNN):
         dropout = get_model_param("dropout")
         agg_func = get_model_param("agg_func")
         encoder = DgrEncoderLarge(dropout)
+        aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes, dropout, agg_func)
+        super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims, encoder, aggregator)
+
+
+class DgrInstanceSpaceNNLarge2(DgrSceneToPatchNN):
+    """
+    Version of DgrInstanceSpaceNNLarge that uses 76 x 76 patches rather than 102 x 102.
+      ~1.46M parameters smaller because of this change (2.98M -> 1.52M).
+    """
+
+    def __init__(self, device):
+        dropout = get_model_param("dropout")
+        agg_func = get_model_param("agg_func")
+        # Use DgrEncoderLarge2 rather than DgrEncoderLarge
+        encoder = DgrEncoderLarge2(dropout)
         aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes, dropout, agg_func)
         super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims, encoder, aggregator)
 
