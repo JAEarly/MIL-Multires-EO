@@ -5,7 +5,7 @@ import numpy as np
 from texttable import Texttable
 
 
-def parse_raw_results(file, model_names):
+def parse_raw_results(file, model_names, n_expected_blocks, include_patch_size_in_names):
     with open(file, newline='') as csv_file:
         reader = csv.reader(csv_file, delimiter='|')
         # Parse three blocks: rmse/mae, grid_seg, and high_res_seg
@@ -17,7 +17,7 @@ def parse_raw_results(file, model_names):
             # Each block should contain n_models * 2 + 4 lines
             #  Each model row has two lines (data row and table border)
             #  Four additional lines for the title (one line) and table header (three lines)
-            if len(block) == len(model_names) * 2 + 4:
+            if len(block) == n_expected_blocks * 2 + 4:
                 if block_num == 0:
                     scene_rmse = parse_split(block, -3)
                     scene_mae = parse_split(block, -2)
@@ -33,7 +33,8 @@ def parse_raw_results(file, model_names):
     rows = []
     means = []
     for model in model_names:
-        row = [format_model_type(model), scene_rmse[model], scene_mae[model], grid_seg[model], high_res_seg[model]]
+        row = [format_model_type(model, include_patch_size=include_patch_size_in_names), scene_rmse[model],
+               scene_mae[model], grid_seg[model], high_res_seg[model]]
         row_means = [float(r.split(' +- ')[0]) for r in row[1:]]
         means.append(row_means)
         row[1:] = ['{:.3f} $\pm$ {:.3f}'.format(*[float(s) for s in r.split(' +- ')]) for r in row[1:]]
@@ -43,16 +44,20 @@ def parse_raw_results(file, model_names):
     return rows, means
 
 
-def run():
+def run(reduced=False):
     # Aggregate lists of data parsed from all files
     rows = [['Configuration', 'Scene RMSE', 'Scene MAE', 'Patch mIoU', 'Pixel mIoU']]
     means = []
 
     # Parse single res results
     single_res_file = "results/single_res_raw_results.txt"
-    single_res_model_names = ['resnet', 'unet224', 'unet448', '8_small', '8_medium', '8_large', '16_small', '16_medium',
-                              '16_large', '24_small', '24_medium', '24_large']
-    single_res_out_rows, single_res_out_means = parse_raw_results(single_res_file, single_res_model_names)
+    if reduced:
+        single_res_model_names = ['resnet', 'unet224', 'unet448', '8_large', '16_medium', '24_medium']
+    else:
+        single_res_model_names = ['resnet', 'unet224', 'unet448', '8_small', '8_medium', '8_large', '16_small',
+                                  '16_medium', '16_large', '24_small', '24_medium', '24_large']
+    single_res_out_rows, single_res_out_means = parse_raw_results(single_res_file, single_res_model_names, 12,
+                                                                  include_patch_size_in_names=not reduced)
     rows += single_res_out_rows
     means += single_res_out_means
 
@@ -60,7 +65,8 @@ def run():
     multi_res_single_out_file = "results/multi_res_single_out_raw_results.txt"
     multi_res_single_out_modes = ['multi_res_single_out']
     multi_res_single_out_rows, multi_res_single_out_means = parse_raw_results(multi_res_single_out_file,
-                                                                              multi_res_single_out_modes)
+                                                                              multi_res_single_out_modes, 1,
+                                                                              include_patch_size_in_names=not reduced)
     rows += multi_res_single_out_rows
     means += multi_res_single_out_means
 
@@ -68,7 +74,8 @@ def run():
     multi_res_multi_out_file = "results/multi_res_multi_out_raw_results.txt"
     multi_res_multi_out_models = ['s=0', 's=1', 's=2', 's=m']
     multi_res_multi_out_rows, multi_res_multi_out_means = parse_raw_results(multi_res_multi_out_file,
-                                                                            multi_res_multi_out_models)
+                                                                            multi_res_multi_out_models, 4,
+                                                                            include_patch_size_in_names=not reduced)
     rows += multi_res_multi_out_rows
     means += multi_res_multi_out_rows
 
@@ -109,7 +116,7 @@ def parse_split(split, idx):
     return values_dict
 
 
-def format_model_type(model_type):
+def format_model_type(model_type, include_patch_size):
     if model_type == 'resnet':
         return 'ResNet18'
     elif 'unet' in model_type:
@@ -118,9 +125,12 @@ def format_model_type(model_type):
         return 'S2P Multi Res Single Out'
     elif 's=' in model_type:
         return 'S2P Multi Res Multi Out ' + model_type
+
     grid_size, patch_size = model_type.split('_')
-    return 'S2P Single Res {:s} {:s}'.format(patch_size.title(), grid_size)
+    if include_patch_size:
+        return 'S2P Single Res {:s} {:s}'.format(patch_size.title(), grid_size)
+    return 'S2P Single Res {:s}'.format(grid_size)
 
 
 if __name__ == "__main__":
-    run()
+    run(reduced=True)
