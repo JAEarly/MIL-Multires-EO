@@ -31,6 +31,7 @@ class ResultsPlotter:
             'S2P Single Res Large 24': 24,
             'S2P Single Res Small 32': 32,
             'S2P Single Res Medium 32': 32,
+            'S2P Single Res Large 32': 32,
             'S2P Multi Res Single Out': 32,
             'S2P Multi Res Multi Out s=0': 8,
             'S2P Multi Res Multi Out s=1': 16,
@@ -50,7 +51,7 @@ class ResultsPlotter:
             for row in reader:
                 rows.append(row)
 
-            data = rows[4:42:2]
+            data = rows[4:44:2]
             model_names = [row[1].strip() for row in data]
 
             rmse_values = []
@@ -99,9 +100,9 @@ class ResultsPlotter:
         best_8_model = np.argmin([self.rmse_values_dict[self.model_names[i]] for i in [0, 1, 2]])
         best_16_model = 3 + np.argmin([self.rmse_values_dict[self.model_names[i]] for i in [3, 4, 5]])
         best_24_model = 6 + np.argmin([self.rmse_values_dict[self.model_names[i]] for i in [6, 7, 8]])
-        best_32_model = 9 + np.argmin([self.rmse_values_dict[self.model_names[i]] for i in [9, 10]])
+        best_32_model = 9 + np.argmin([self.rmse_values_dict[self.model_names[i]] for i in [9, 10, 11]])
         # Selected models are [best_8_model, s=0 MRMO, best_16_model, s=1 MRMO, best_24_model, best_32_model, s=2 MRMO, MRSO, s=m MRMO]
-        model_idxs = [best_8_model, 12, best_16_model, 13, best_24_model, best_32_model, 14, 11, 15]
+        model_idxs = [best_8_model, 13, best_16_model, 14, best_24_model, best_32_model, 15, 12, 16]
         return model_idxs
 
     def plot_grid_size_vs_performance(self):
@@ -150,22 +151,17 @@ class ResultsPlotter:
 
     def plot_model_size_vs_performance(self):
         model_names = self.grid_sizes.keys()
-        xs = [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 15, 16, 17]
-        rmse_ys = [self.rmse_values_dict[model] for model in model_names][:11]
-        rmse_sems = [self.rmse_sems_dict[model] for model in model_names][:11]
-        mae_ys = [self.mae_values_dict[model] for model in model_names][:11]
-        mae_sems = [self.mae_sems_dict[model] for model in model_names][:11]
-        miou_ys = [self.miou_values_dict[model] for model in model_names][:11]
-        miou_sems = [self.miou_sems_dict[model] for model in model_names][:11]
-        cs = self.colour_cycle[:3] * 3 + self.colour_cycle[:2] + self.colour_cycle[:3]
+        xs = [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14, 16, 17, 18]
+        rmse_ys = [self.rmse_values_dict[model] for model in model_names][:12]
+        rmse_sems = [self.rmse_sems_dict[model] for model in model_names][:12]
+        mae_ys = [self.mae_values_dict[model] for model in model_names][:12]
+        mae_sems = [self.mae_sems_dict[model] for model in model_names][:12]
+        miou_ys = [self.miou_values_dict[model] for model in model_names][:12]
+        miou_sems = [self.miou_sems_dict[model] for model in model_names][:12]
+        cs = self.colour_cycle[:3] * 4
 
         for model_size_idx in range(3):
-            model_idxs = [model_size_idx, 3 + model_size_idx, 6 + model_size_idx]
-            # TODO reinclude once adding the 32 size plots
-            # if model_size_idx == 0:
-            #     model_idxs.append(9)
-            # if model_size_idx == 1:
-            #     model_idxs.append(10)
+            model_idxs = [model_size_idx, 3 + model_size_idx, 6 + model_size_idx, 9 + model_size_idx]
             rmse_ys.append(np.mean([rmse_ys[i] for i in model_idxs]))
             rmse_sems.append(np.mean([rmse_sems[i] for i in model_idxs]))
             mae_ys.append(np.mean([mae_ys[i] for i in model_idxs]))
@@ -176,7 +172,7 @@ class ResultsPlotter:
         fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(12, 3))
 
         axes[0].bar(xs, rmse_ys, color=cs, yerr=rmse_sems)
-        axes[0].set_xticks([1, 5, 9, 12.5, 16])
+        axes[0].set_xticks([1, 5, 9, 13, 17])
         axes[0].set_xticklabels(['8', '16', '24', '32', 'Avg'])
         axes[0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=True)
         axes[0].set_ylabel('RMSE')
