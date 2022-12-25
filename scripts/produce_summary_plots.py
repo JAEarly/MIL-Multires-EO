@@ -138,7 +138,7 @@ class ResultsPlotter:
         axes[2].set_ylabel('mIoU')
 
         labels = ['SR', 'MRMO s=\\{0,1,2\\}', 'MRSO', 'MRMO s=m']
-        legend_colours = [self.model_colour(self.model_names[i]) for i in [0, 12, 11, 15]]
+        legend_colours = [self.model_colour(self.model_names[i]) for i in [0, 13, 12, 16]]
         handles = [plt.Rectangle((0, 0), 1, 1, fc=c, linewidth=0) for c in legend_colours]
         fig.legend(handles=handles, labels=labels, loc='upper center', ncol=4)
 
