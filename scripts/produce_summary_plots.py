@@ -178,14 +178,14 @@ class ResultsPlotter:
         axes[0].set_ylabel('RMSE')
 
         axes[1].bar(xs, mae_ys, color=cs, yerr=mae_sems)
-        axes[1].set_xticks([1, 5, 9, 12.5, 16])
+        axes[1].set_xticks([1, 5, 9, 13, 17])
         axes[1].set_xticklabels(['8', '16', '24', '32', 'Avg'])
         axes[1].set_xlabel('Grid Size')
         axes[1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=True)
         axes[1].set_ylabel('MAE')
 
         axes[2].bar(xs, miou_ys, color=cs, yerr=miou_sems)
-        axes[2].set_xticks([1, 5, 9, 12.5, 16])
+        axes[2].set_xticks([1, 5, 9, 13, 17])
         axes[2].set_xticklabels(['8', '16', '24', '32', 'Avg'])
         axes[2].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=True)
         axes[2].set_ylabel('mIoU')
