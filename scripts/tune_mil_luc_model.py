@@ -46,10 +46,11 @@ def run_tuning():
     if model_type == 'multi_res_multi_out':
         tuner = create_tuner_from_config(device, model_clz, dataset_clz, config, study_name, n_trials,
                                          dataloader_func=create_normal_dataloader, project_name=project_name,
-                                         trainer_clz=MultiResTrainer)
+                                         trainer_clz=MultiResTrainer, model_name=model_type)
     else:
         tuner = create_tuner_from_config(device, model_clz, dataset_clz, config, study_name, n_trials,
-                                         dataloader_func=create_normal_dataloader, project_name=project_name)
+                                         dataloader_func=create_normal_dataloader, project_name=project_name,
+                                         model_name=model_type)
 
     # Log
     print('Starting {:s} tuning'.format(dataset_name))
