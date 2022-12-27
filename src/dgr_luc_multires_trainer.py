@@ -77,7 +77,7 @@ class MultiResTrainer(Trainer):
         # Iterate through data loader and gather preds and targets
         model.eval()
         model_outs = cls.get_model_outputs_for_dataset(model, dataloader)
-        all_preds, all_targets, all_instance_preds, all_instance_targets = model_outs
+        all_preds, all_targets, all_instance_preds, all_instance_targets, _ = model_outs
         labels = list(range(model.n_classes))
 
         # Calculate bag results

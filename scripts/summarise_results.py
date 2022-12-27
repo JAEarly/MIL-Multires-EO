@@ -52,11 +52,12 @@ def run(reduced=False):
     # Parse single res results
     single_res_file = "results/single_res_raw_results.txt"
     if reduced:
-        single_res_model_names = ['resnet', 'unet224', 'unet448', '8_large', '16_medium', '24_medium']
+        single_res_model_names = ['resnet', 'unet224', 'unet448', '8_large', '16_medium', '24_medium', '32_large']
     else:
         single_res_model_names = ['resnet', 'unet224', 'unet448', '8_small', '8_medium', '8_large', '16_small',
-                                  '16_medium', '16_large', '24_small', '24_medium', '24_large']
-    single_res_out_rows, single_res_out_means = parse_raw_results(single_res_file, single_res_model_names, 12,
+                                  '16_medium', '16_large', '24_small', '24_medium', '24_large',
+                                  '32_small', '32_medium', '32_large']
+    single_res_out_rows, single_res_out_means = parse_raw_results(single_res_file, single_res_model_names, 15,
                                                                   include_patch_size_in_names=not reduced)
     rows += single_res_out_rows
     means += single_res_out_means
