@@ -71,11 +71,13 @@ training:
     wd: 1.e-6
     dropout: 0.15
     agg_func: mean
+    n_epochs: 40
   multi_res_multi_out:
     lr: 1.e-4
     wd: 1.e-5
     dropout: 0.4
     agg_func: mean
+    n_epochs: 40
   resnet:
     lr: 0.05
     wd: 0.1
