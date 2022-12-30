@@ -134,4 +134,7 @@ def format_model_type(model_type, include_patch_size):
 
 
 if __name__ == "__main__":
+    print('-- Complete --')
+    run(reduced=False)
+    print('\n-- Reduced --')
     run(reduced=True)
