@@ -73,7 +73,7 @@ training:
     agg_func: mean
     n_epochs: 40
   multi_res_multi_out:
-    lr: 5.e-4
+    lr: 1.e-4
     wd: 1.e-6
     dropout: 0.1
     agg_func: mean
