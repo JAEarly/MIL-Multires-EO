@@ -259,10 +259,10 @@ class FloodNetDataset(MilDataset, ABC):
 
     def __getitem__(self, bag_idx):
         # Load original satellite and mask images
-        sat_path = self.bags[bag_idx]
+        sat_path = PurePath(self.bags[bag_idx])
 
         # Resize to effective patch resolution before extracting
-        img = Image.open(sat_path)
+        img = Image.open(str(sat_path))
         img = img.resize((self.patch_details.effective_patch_resolution_x,
                           self.patch_details.effective_patch_resolution_y))
         img_arr = np.array(img)
