@@ -45,7 +45,7 @@ class DgrUNet(models.MultipleInstanceNN):
         else:
             raise ValueError('Invalid out function: {:}'.format(out_func_name))
 
-    def _internal_forward(self, bags):
+    def _internal_forward(self, bags, bags_metadata=None):
         batch_size = len(bags)
         bag_predictions = torch.zeros((batch_size, self.n_classes)).to(self.device)
         bag_cams = []

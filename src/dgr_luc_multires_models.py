@@ -143,7 +143,7 @@ class DgrMultiResSingleOutNN(DgrMultiResNN):
 
     name = "MultiResSingleOutNN"
 
-    def _internal_forward(self, bags):
+    def _internal_forward(self, bags, bags_metadata=None):
         batch_size = len(bags)
         # We make a single prediction for each bag using the combined scale
         bag_predictions = torch.zeros((batch_size, self.n_classes)).to(self.device)
@@ -181,8 +181,10 @@ class DgrMultiResMultiOutNN(DgrMultiResNN):
                                                     self.dropout, self.agg_func)
         self.s2_aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes,
                                                     self.dropout, self.agg_func)
+        print(self)
+        exit(0)
 
-    def _internal_forward(self, bags):
+    def _internal_forward(self, bags, bags_metadata=None):
         batch_size = len(bags)
         # We make four predictions for each bag: s0, s1, s2, main
         bag_predictions = torch.zeros((batch_size, 4, self.n_classes)).to(self.device)

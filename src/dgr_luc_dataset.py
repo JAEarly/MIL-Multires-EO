@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 from bonfire.data.mil_dataset import MilDataset
 from bonfire.train.metrics import RegressionMetric, output_regression_results
+from dataset import PatchDetailsSquare, calculate_dataset_normalisation
 
 
 RAW_DATA_DIR = 'data/DeepGlobeLUC/raw'
@@ -22,86 +23,39 @@ TARGET_OUT_PATH = 'data/DeepGlobeLUC/targets.csv'
 CLASS_DIST_PATH = 'data/DeepGlobeLUC/class_distribution.csv'
 
 
-class PatchDetails:
-
-    def __init__(self, grid_size, patch_size, orig_img_size=2448):
-        # Size of (square) grid to apply over the original image
-        self.grid_size = grid_size
-        # Size to reduce each cell of the grid to
-        self.patch_size = patch_size
-        # Size of original image
-        self.orig_img_size = orig_img_size
-        # Size of each cell (according to original image size and grid size)
-        self.cell_size = self._calculate_cell_size()
-        # Total number of patches that will be extracted from each image (size of grid squared)
-        self.num_patches = self._calculate_num_patches()
-        # Effective resolution after extracting cells
-        self.effective_cell_resolution = self._calculate_effective_cell_resolution()
-        # Effective resolution after extracting and resizing cells (to get patches)
-        self.effective_patch_resolution = self._calculate_effective_patch_resolution()
-        # Scale of effective resolution compared to original resolution
-        self.scale = self._calculate_scale()
-        # Check values are okay
-        self._check_valid()
-
-    def _check_valid(self):
-        if self.grid_size * self.patch_size > self.orig_img_size:
-            raise ValueError(
-                'Cannot use grid_size {:d} and patch_size {:d} as effive patch resolution is larger than the original'
-                'image {:d} > {:d}'
-                .format(self.grid_size, self.patch_size,self.effective_patch_resolution, self.orig_img_size)
-            )
-
-    def _calculate_cell_size(self):
-        # Calculate largest possible cell size (whole number) at scale of the original image
-        return self.orig_img_size // self.grid_size
-
-    def _calculate_num_patches(self):
-        return int(self.grid_size ** 2)
-
-    def _calculate_effective_cell_resolution(self):
-        return self.grid_size * self.cell_size
-
-    def _calculate_effective_patch_resolution(self):
-        return self.grid_size * self.patch_size
-
-    def _calculate_scale(self):
-        return (self.effective_patch_resolution ** 2) / (self.orig_img_size ** 2)
-
-
 def get_patch_details(model_type):
     if model_type == "8_small":
-        return PatchDetails(8, 28)
+        return PatchDetailsSquare(8, 28, 2448)
     elif model_type == "8_medium":
-        return PatchDetails(8, 56)
+        return PatchDetailsSquare(8, 56, 2448)
     elif model_type == "8_large":
-        return PatchDetails(8, 102)
+        return PatchDetailsSquare(8, 102, 2448)
     elif model_type == "16_small":
-        return PatchDetails(16, 28)
+        return PatchDetailsSquare(16, 28, 2448)
     elif model_type == "16_medium":
-        return PatchDetails(16, 56)
+        return PatchDetailsSquare(16, 56, 2448)
     elif model_type == "16_large":
-        return PatchDetails(16, 102)
+        return PatchDetailsSquare(16, 102, 2448)
     elif model_type == "24_small":
-        return PatchDetails(24, 28)
+        return PatchDetailsSquare(24, 28, 2448)
     elif model_type == "24_medium":
-        return PatchDetails(24, 56)
+        return PatchDetailsSquare(24, 56, 2448)
     elif model_type == "24_large":
-        return PatchDetails(24, 102)
+        return PatchDetailsSquare(24, 102, 2448)
     elif model_type == "32_small":
-        return PatchDetails(32, 28)
+        return PatchDetailsSquare(32, 28, 2448)
     elif model_type == "32_medium":
-        return PatchDetails(32, 56)
+        return PatchDetailsSquare(32, 56, 2448)
     elif model_type == "32_large":
-        return PatchDetails(32, 76)
+        return PatchDetailsSquare(32, 76, 2448)
     elif "multi_res" in model_type:
-        return PatchDetails(8, 304)
+        return PatchDetailsSquare(8, 304, 2448)
     elif model_type == "resnet":
-        return PatchDetails(1, 224)
+        return PatchDetailsSquare(1, 224, 2448)
     elif model_type == "unet224":
-        return PatchDetails(1, 224)
+        return PatchDetailsSquare(1, 224, 2448)
     elif model_type == "unet448":
-        return PatchDetails(1, 448)
+        return PatchDetailsSquare(1, 448, 2448)
     else:
         raise ValueError("No patch details registered for model type {:s}".format(model_type))
 
@@ -115,20 +69,21 @@ def get_dataset_list():
             DgrLucDatasetMultiResSingleOut, DgrLucDatasetMultiResMultiOut]
 
 
-def get_model_type_list():
-    return [dataset_clz.model_type for dataset_clz in get_dataset_list()]
-
-
-def get_dataset_clz(model_type):
-    for dataset_clz in get_dataset_list():
-        if dataset_clz.model_type == model_type:
-            return dataset_clz
+# REFACTORED TO DATASET
+# def get_model_type_list():
+#     return [dataset_clz.model_type for dataset_clz in get_dataset_list()]
+#
+#
+# def get_dataset_clz(model_type):
+#     for dataset_clz in get_dataset_list():
+#         if dataset_clz.model_type == model_type:
+#             return dataset_clz
 
 
 def setup(patch_details):
     metadata_df = _load_metadata_df()
     _setup_patch_csv(metadata_df, patch_details)
-    # _calculate_dataset_normalisation(metadata_df)
+    # calculate_dataset_normalisation(metadata_df)
     # _visualise_data(metadata_df)
     # _generate_per_class_coverage(metadata_df)
     # _plot_per_class_coverage()
@@ -216,22 +171,6 @@ def _setup_patch_csv(metadata_df, patch_details):
     df_cols = ['image_id', 'i_x', 'i_y'] + [DgrLucDataset.target_to_name(i) for i in range(7)]
     patches_df = pd.DataFrame(data=all_patch_data, columns=df_cols)
     patches_df.to_csv(PATCH_DATA_CSV_FMT.format(patch_details.cell_size), index=False)
-
-
-def _calculate_dataset_normalisation(metadata_df):
-    print('Calculating dataset normalisation')
-    avgs = []
-    for i in tqdm(range(len(metadata_df)), desc='Calculating dataset normalisation', leave=False):
-        sat_path = metadata_df['sat_image_path'][i]
-        sat_img = Image.open(sat_path)
-        sat_img_arr = np.array(sat_img) / 255
-        avg = np.mean(sat_img_arr, axis=(0, 1))
-        avgs.append(avg)
-    arrs = np.stack(avgs)
-    arrs_mean = np.mean(arrs, axis=0)
-    arrs_std = np.std(arrs, axis=0)
-    print(' Mean:', arrs_mean)
-    print('  Std:', arrs_std)
 
 
 def make_binary_mask(mask):
@@ -369,7 +308,7 @@ class DgrLucDataset(MilDataset, ABC):
     @classmethod
     @property
     @abstractmethod
-    def patch_details(cls) -> PatchDetails:
+    def patch_details(cls) -> PatchDetailsSquare:
         pass
 
     @classmethod
@@ -454,7 +393,7 @@ class DgrLucDataset(MilDataset, ABC):
 
     @classmethod
     def get_dataset_splits(cls, bags, targets, random_state=5):
-        # Split using stratified k fold (5 splits)
+        # Split using k fold (5 splits)
         skf = KFold(n_splits=5, shuffle=True, random_state=random_state)
         splits = skf.split(bags, targets)
 
@@ -608,6 +547,7 @@ class DgrLucDataset32Large(DgrLucDataset):
     name = "dgr_luc_" + model_type
     patch_details = get_patch_details(model_type)
 
+
 class DgrLucDatasetMultiResSingleOut(DgrLucDataset):
     model_type = "multi_res_single_out"
     name = "dgr_luc_" + model_type
@@ -656,4 +596,4 @@ class DgrLucDatasetUNet448(DgrLucDataset):
 
 
 if __name__ == "__main__":
-    setup(PatchDetails(32, 56))
+    setup(PatchDetailsSquare(32, 56, 2448))
