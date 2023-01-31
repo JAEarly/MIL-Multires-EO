@@ -1,7 +1,7 @@
 import os
 from abc import ABC
 from abc import abstractmethod
-from pathlib import PurePath
+from pathlib import PurePosixPath
 
 import numpy as np
 import pandas as pd
@@ -14,7 +14,7 @@ from bonfire.data.mil_dataset import MilDataset
 from bonfire.train.metrics import RegressionMetric
 from dataset import PatchDetails
 
-BASE_DATA_DIR = PurePath('data/FloodNet')
+BASE_DATA_DIR = PurePosixPath('data/FloodNet')
 METADATA_PATH = BASE_DATA_DIR.joinpath('metadata.csv')
 TRAIN_IMG_PATH = BASE_DATA_DIR.joinpath('train', 'train-org-img')
 TRAIN_LABEL_PATH = BASE_DATA_DIR.joinpath('train', 'train-label-img')
@@ -259,10 +259,10 @@ class FloodNetDataset(MilDataset, ABC):
 
     def __getitem__(self, bag_idx):
         # Load original satellite and mask images
-        sat_path = PurePath(self.bags[bag_idx])
+        sat_path = self.bags[bag_idx]
 
         # Resize to effective patch resolution before extracting
-        img = Image.open(str(sat_path))
+        img = Image.open(sat_path)
         img = img.resize((self.patch_details.effective_patch_resolution_x,
                           self.patch_details.effective_patch_resolution_y))
         img_arr = np.array(img)
