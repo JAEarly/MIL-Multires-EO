@@ -8,9 +8,9 @@ from texttable import Texttable
 from bonfire.train.trainer import create_trainer_from_clzs, create_normal_dataloader
 from bonfire.util import get_device, load_model
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-from dgr_luc_dataset import get_dataset_clz
-from dgr_luc_models import get_model_clz
-from dgr_luc_multires_trainer import MultiResTrainer
+from deepglobe.dgr_luc_dataset import get_dataset_clz
+from deepglobe.dgr_luc_models import get_model_clz
+from deepglobe.dgr_luc_multires_trainer import MultiResTrainer
 import torch
 from evaluate_luc_models import evaluate_iou_grid, evaluate_iou_segmentation
 

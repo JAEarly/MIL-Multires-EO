@@ -6,9 +6,9 @@ from bonfire.train.trainer import create_normal_dataloader
 from bonfire.tune import create_tuner_from_config
 from bonfire.util import get_device
 from bonfire.util.yaml_util import parse_yaml_config
-from dgr_luc_dataset import get_dataset_clz, get_model_type_list
-from dgr_luc_models import get_model_clz
-from dgr_luc_multires_trainer import MultiResTrainer
+from deepglobe.dgr_luc_dataset import get_dataset_clz, get_model_type_list
+from deepglobe.dgr_luc_models import get_model_clz
+from deepglobe.dgr_luc_multires_trainer import MultiResTrainer
 
 device = get_device()
 all_models = get_model_type_list()

@@ -5,7 +5,7 @@ from torch import nn
 from bonfire.model import aggregator as agg
 from bonfire.model import modules as mod
 from bonfire.model.models import MultipleInstanceNN
-from dgr_luc_dataset import DgrLucDataset
+from deepglobe.dgr_luc_dataset import DgrLucDataset
 from matplotlib import pyplot as plt
 from abc import ABC
 

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import wandb
 
 from bonfire.model import models
-from dgr_luc_dataset import DgrLucDataset
+from deepglobe.dgr_luc_dataset import DgrLucDataset
 
 
 def get_model_param(key):

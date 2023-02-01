@@ -1,8 +1,8 @@
 import wandb
 
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-from dgr_luc_dataset import get_dataset_list
-from dgr_luc_models import get_n_params
+from deepglobe import dgr_luc_dataset, dgr_luc_models
+from floodnet import floodnet_dataset, floodnet_models
 from texttable import Texttable
 
 import time
@@ -10,29 +10,27 @@ import time
 from latextable import draw_latex
 
 
-def summarise_configs():
+def summarise_configs(dataset_list, n_param_func):
     wandb.init()
 
     rows = [['Configuration', 'Grid Size', 'Cell Size', 'Patch Size', 'Eff. Resolution', 'Scale', '\\# Params']]
-    for dataset in get_dataset_list():
+    for dataset in dataset_list:
         patch_details = dataset.patch_details
         model_type = dataset.model_type
-
         config_path = "config/model_config.yaml"
         config = parse_yaml_config(config_path)
         training_config = parse_training_config(config['training'], model_type)
         wandb.config.update(training_config, allow_val_change=True)
-
         row = [
             _format_model_type(model_type),
-            "{:d} x {:d}".format(patch_details.grid_size, patch_details.grid_size),
+            "{:d} x {:d}".format(patch_details.grid_size_x, patch_details.grid_size_y),
             "{:d} x {:d} px".format(patch_details.cell_size, patch_details.cell_size),
             "{:d} x {:d} px".format(patch_details.patch_size, patch_details.patch_size),
-            "{:d} x {:d} px".format(patch_details.effective_patch_resolution, patch_details.effective_patch_resolution),
+            "{:d} x {:d} px".format(patch_details.effective_patch_resolution_x,
+                                    patch_details.effective_patch_resolution_y),
             "{:.1f}\\%".format(patch_details.scale * 100),
-            "{:s}".format(_format_n_params(get_n_params(model_type))),
+            "{:s}".format(_format_n_params(n_param_func(model_type))),
         ]
-
         rows.append(row)
 
     table = Texttable()
@@ -42,7 +40,6 @@ def summarise_configs():
     print(table.draw())
 
     print('\n')
-
     print(draw_latex(table, use_booktabs=True))
 
     # For wandb
@@ -70,4 +67,5 @@ def _format_n_params(n_params):
 
 
 if __name__ == "__main__":
-    summarise_configs()
+    # summarise_configs(dgr_luc_dataset.get_dataset_list(), dgr_luc_models.get_n_params)
+    summarise_configs(floodnet_dataset.get_dataset_list(), floodnet_models.get_n_params)

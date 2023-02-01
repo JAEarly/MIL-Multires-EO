@@ -6,10 +6,10 @@ from bonfire.train.trainer import create_trainer_from_clzs, create_normal_datalo
 from bonfire.util import get_device
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
 from dataset import get_dataset_clz, get_model_type_list
-from dgr_luc_models import get_model_clz as get_model_clz_dgr
+from deepglobe.dgr_luc_models import get_model_clz as get_model_clz_dgr
 from floodnet.floodnet_models import get_model_clz as get_model_clz_floodnet
-from dgr_luc_multires_trainer import MultiResTrainer
-import dgr_luc_dataset
+from deepglobe.dgr_luc_multires_trainer import MultiResTrainer
+from deepglobe import dgr_luc_dataset
 from floodnet import floodnet_dataset
 
 device = get_device()

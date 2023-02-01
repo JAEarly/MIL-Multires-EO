@@ -9,9 +9,9 @@ from torchvision.models import resnet18, ResNet18_Weights
 from bonfire.model import aggregator as agg
 from bonfire.model import models
 from bonfire.model import modules as mod
-from dgr_luc_dataset import DgrLucDataset
-from dgr_luc_multires_models import DgrMultiResSingleOutNN, DgrMultiResMultiOutNN
-from dgr_luc_unet import DgrUNet
+from deepglobe.dgr_luc_dataset import DgrLucDataset
+from deepglobe.dgr_luc_multires_models import DgrMultiResSingleOutNN, DgrMultiResMultiOutNN
+from deepglobe.dgr_luc_unet import DgrUNet
 
 
 def get_model_param(key):

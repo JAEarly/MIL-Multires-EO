@@ -5,9 +5,9 @@ import wandb
 from bonfire.util import get_device
 from bonfire.util import load_model_from_path, get_default_save_path
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-from dgr_luc_dataset import get_dataset_clz, get_model_type_list
-from dgr_luc_interpretability import MilLucInterpretabilityStudy
-from dgr_luc_models import get_model_clz
+from deepglobe.dgr_luc_dataset import get_dataset_clz, get_model_type_list
+from deepglobe.dgr_luc_interpretability import MilLucInterpretabilityStudy
+from deepglobe.dgr_luc_models import get_model_clz
 
 device = get_device()
 model_type_choices = get_model_type_list()

@@ -4,9 +4,9 @@ import wandb
 from bonfire.util import get_device
 from bonfire.util import load_model_from_path, get_default_save_path
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-from dgr_luc_dataset import get_dataset_clz
-from dgr_luc_interpretability import MilLucInterpretabilityStudy
-from dgr_luc_models import get_model_clz
+from deepglobe.dgr_luc_dataset import get_dataset_clz
+from deepglobe.dgr_luc_interpretability import MilLucInterpretabilityStudy
+from deepglobe.dgr_luc_models import get_model_clz
 from matplotlib.gridspec import GridSpec
 
 device = get_device()

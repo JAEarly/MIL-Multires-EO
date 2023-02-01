@@ -30,7 +30,7 @@ def _get_patch_data_csv_path(cell_size):
 
 
 def get_dataset_list():
-    return [FloodNetDataset8Large]
+    return [FloodNetDataset8Large, FloodNetDataset16Large, FloodNetDataset32Large]
 
 
 def setup(patch_details):
@@ -305,5 +305,17 @@ class FloodNetDataset8Large(FloodNetDataset):
     patch_details = PatchDetails(8, 6, 64, 4000, 3000)
 
 
+class FloodNetDataset16Large(FloodNetDataset):
+    model_type = "16_large"
+    name = "floodnet_" + model_type
+    patch_details = PatchDetails(16, 12, 64, 4000, 3000)
+
+
+class FloodNetDataset32Large(FloodNetDataset):
+    model_type = "32_large"
+    name = "floodnet_" + model_type
+    patch_details = PatchDetails(32, 24, 64, 4000, 3000)
+
+
 if __name__ == "__main__":
-    setup(PatchDetails(8, 6, 64, 4000, 3000))
+    setup(FloodNetDataset32Large.patch_details)
