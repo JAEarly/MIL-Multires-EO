@@ -18,7 +18,7 @@ def summarise_configs():
         patch_details = dataset.patch_details
         model_type = dataset.model_type
 
-        config_path = "config/dgr_luc_config.yaml"
+        config_path = "config/model_config.yaml"
         config = parse_yaml_config(config_path)
         training_config = parse_training_config(config['training'], model_type)
         wandb.config.update(training_config, allow_val_change=True)

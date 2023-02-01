@@ -75,6 +75,10 @@ class PatchDetailsSquare(PatchDetails):
     def orig_img_size(self):
         return self.orig_img_size_x
 
+    @property
+    def effective_patch_resolution(self):
+        return self.effective_patch_resolution_x
+
 
 def get_model_type_list(dataset_list):
     return [dataset_clz.model_type for dataset_clz in dataset_list]

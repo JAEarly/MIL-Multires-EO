@@ -249,13 +249,18 @@ class FloodNetDataset(MilDataset, ABC):
 
     @classmethod
     def create_datasets(cls, random_state=12):
-        train_bags, train_targets, train_its, train_md = cls.load_bags('train')
-        train_dataset = cls(train_bags, train_targets, train_its, train_md)
-        val_bags, val_targets, val_its, val_md = cls.load_bags('val')
-        val_dataset = cls(val_bags, val_targets, val_its, val_md)
-        test_bags, test_targets, test_its, test_md = cls.load_bags('train')
-        test_dataset = cls(test_bags, test_targets, test_its, test_md)
-        yield train_dataset, val_dataset, test_dataset
+        # Dataset split is the same every time (as defined in the original dataset)
+        #  Therefore just yield the same datasets each time, achieved with an infinite loop
+        #  This assumes the caller correctly stops executing, which is default trainer does
+        #   (both for single and repeat trainings)
+        while True:
+            train_bags, train_targets, train_its, train_md = cls.load_bags('train')
+            train_dataset = cls(train_bags, train_targets, train_its, train_md)
+            val_bags, val_targets, val_its, val_md = cls.load_bags('val')
+            val_dataset = cls(val_bags, val_targets, val_its, val_md)
+            test_bags, test_targets, test_its, test_md = cls.load_bags('test')
+            test_dataset = cls(test_bags, test_targets, test_its, test_md)
+            yield train_dataset, val_dataset, test_dataset
 
     def __getitem__(self, bag_idx):
         # Load original satellite and mask images

@@ -181,8 +181,6 @@ class DgrMultiResMultiOutNN(DgrMultiResNN):
                                                     self.dropout, self.agg_func)
         self.s2_aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes,
                                                     self.dropout, self.agg_func)
-        print(self)
-        exit(0)
 
     def _internal_forward(self, bags, bags_metadata=None):
         batch_size = len(bags)

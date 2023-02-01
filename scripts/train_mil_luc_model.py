@@ -69,12 +69,7 @@ def run_training():
                                            project_name=project_name, group_name=group_name)
 
     # Parse wandb config and get training config for this model
-    if dataset_name == 'dgr':
-        config_path = "config/dgr_luc_config.yaml"
-    elif dataset_name == 'floodnet':
-        config_path = "config/floodnet_config.yaml"
-    else:
-        raise ValueError('No config file registered for dataset {:s}'.format(dataset_name))
+    config_path = "config/model_config.yaml"
     config = parse_yaml_config(config_path)
     training_config = parse_training_config(config['training'], model_type)
 
