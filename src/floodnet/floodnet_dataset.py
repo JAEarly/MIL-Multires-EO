@@ -31,6 +31,7 @@ def _get_patch_data_csv_path(cell_size):
 
 def get_dataset_list():
     return [
+        FloodNetDatasetResNet, FloodNetDatasetUNet224, FloodNetDatasetUNet448,
         FloodNetDataset8Small, FloodNetDataset8Medium, FloodNetDataset8Large,
         FloodNetDataset16Small, FloodNetDataset16Medium, FloodNetDataset16Large,
         FloodNetDataset32Small, FloodNetDataset32Medium, FloodNetDataset32Large,
@@ -119,7 +120,7 @@ def _setup_patch_csv(metadata_df, patch_details):
     :param metadata_df: Dataframe of image metadata.
     """
     print('Setting up patch csv')
-    print(' Cell size: {:d}'.format(patch_details.cell_size))
+    print(' Cell size: {:d}'.format(patch_details.cell_size_x))
     print(' Patch size: {:d}'.format(patch_details.patch_size))
     print(' {:d} patches per image'.format(patch_details.num_patches))
     print(' {:d} x {:d} effective cell resolution'.format(patch_details.effective_cell_resolution_x,
@@ -135,21 +136,23 @@ def _setup_patch_csv(metadata_df, patch_details):
         image_id = metadata_df['image_id'][i]
         mask_path = metadata_df['mask_path'][i]
         mask_img = Image.open(mask_path)
-        mask_img = mask_img.resize((patch_details.effective_cell_resolution_x, patch_details.effective_cell_resolution_y),
+        mask_img = mask_img.resize((patch_details.effective_cell_resolution_x,
+                                    patch_details.effective_cell_resolution_y),
                                    resample=Image.Resampling.NEAREST)
-        mask_img_arr = np.array(mask_img)
+        # TODO does transpose change results for DGR?
+        mask_img_arr = np.array(mask_img).T
 
         # Iterate through each cell in the grid
-        n_x = int(mask_img_arr.shape[0]/patch_details.cell_size)
-        n_y = int(mask_img_arr.shape[1]/patch_details.cell_size)
+        n_x = int(mask_img_arr.shape[0]/patch_details.cell_size_x)
+        n_y = int(mask_img_arr.shape[1]/patch_details.cell_size_y)
         for i_x in range(n_x):
             for i_y in range(n_y):
                 # Extract patch from original image
-                p_x = i_x * patch_details.cell_size
-                p_y = i_y * patch_details.cell_size
+                p_x = i_x * patch_details.cell_size_x
+                p_y = i_y * patch_details.cell_size_y
 
                 # Extract mask patch from original mask
-                patch_mask_arr = mask_img_arr[p_x:p_x+patch_details.cell_size, p_y:p_y+patch_details.cell_size]
+                patch_mask_arr = mask_img_arr[p_x:p_x+patch_details.cell_size_x, p_y:p_y+patch_details.cell_size_y]
 
                 # Get clz coverage in this image
                 patch_targets = np.zeros(10)
@@ -166,7 +169,7 @@ def _setup_patch_csv(metadata_df, patch_details):
     # Save the patch dataframe
     df_cols = ['image_id', 'i_x', 'i_y'] + [FloodNetDataset.label_to_name(i) for i in range(10)]
     patches_df = pd.DataFrame(data=all_patch_data, columns=df_cols)
-    patches_df.to_csv(_get_patch_data_csv_path(patch_details.cell_size), index=False)
+    patches_df.to_csv(_get_patch_data_csv_path(patch_details.cell_size_x), index=False)
 
 
 class FloodNetDataset(MilDataset, ABC):
@@ -228,7 +231,7 @@ class FloodNetDataset(MilDataset, ABC):
 
     @classmethod
     def _parse_instance_targets(cls, metadata_df):
-        patches_df = pd.read_csv(_get_patch_data_csv_path(cls.patch_details.cell_size))
+        patches_df = pd.read_csv(_get_patch_data_csv_path(cls.patch_details.cell_size_x))
         # coverage_df = cls.load_per_class_coverage()
         instance_targets = []
         for image_id in metadata_df['image_id']:
@@ -303,59 +306,77 @@ class FloodNetDataset(MilDataset, ABC):
         return data_dict
 
 
+class FloodNetDatasetResNet(FloodNetDataset):
+    model_type = "resnet"
+    name = 'floodnet_' + model_type
+    patch_details = PatchDetails(1, 1, 224, 4000, 3000)
+
+
+class FloodNetDatasetUNet224(FloodNetDataset):
+    model_type = "unet224"
+    name = 'floodnet_' + model_type
+    patch_details = PatchDetails(1, 1, 224, 4000, 3000)
+
+
+class FloodNetDatasetUNet448(FloodNetDataset):
+    model_type = "unet448"
+    name = 'floodnet_' + model_type
+    patch_details = PatchDetails(1, 1, 448, 4000, 3000)
+
+
 class FloodNetDataset8Small(FloodNetDataset):
     model_type = "8_small"
-    name = "floodnet_" + model_type
+    name = 'floodnet_' + model_type
     patch_details = PatchDetails(8, 6, 28, 4000, 3000)
 
 
 class FloodNetDataset16Small(FloodNetDataset):
     model_type = "16_small"
-    name = "floodnet_" + model_type
+    name = 'floodnet_' + model_type
     patch_details = PatchDetails(16, 12, 28, 4000, 3000)
 
 
 class FloodNetDataset32Small(FloodNetDataset):
     model_type = "32_small"
-    name = "floodnet_" + model_type
+    name = 'floodnet_' + model_type
     patch_details = PatchDetails(32, 24, 28, 4000, 3000)
 
 
 class FloodNetDataset8Medium(FloodNetDataset):
     model_type = "8_medium"
-    name = "floodnet_" + model_type
+    name = 'floodnet_' + model_type
     patch_details = PatchDetails(8, 6, 56, 4000, 3000)
 
 
 class FloodNetDataset16Medium(FloodNetDataset):
     model_type = "16_medium"
-    name = "floodnet_" + model_type
+    name = 'floodnet_' + model_type
     patch_details = PatchDetails(16, 12, 56, 4000, 3000)
 
 
 class FloodNetDataset32Medium(FloodNetDataset):
     model_type = "32_medium"
-    name = "floodnet_" + model_type
+    name = 'floodnet_' + model_type
     patch_details = PatchDetails(32, 24, 56, 4000, 3000)
 
 
 class FloodNetDataset8Large(FloodNetDataset):
     model_type = "8_large"
-    name = "floodnet_" + model_type
+    name = 'floodnet_' + model_type
     patch_details = PatchDetails(8, 6, 102, 4000, 3000)
 
 
 class FloodNetDataset16Large(FloodNetDataset):
     model_type = "16_large"
-    name = "floodnet_" + model_type
+    name = 'floodnet_' + model_type
     patch_details = PatchDetails(16, 12, 102, 4000, 3000)
 
 
 class FloodNetDataset32Large(FloodNetDataset):
     model_type = "32_large"
-    name = "floodnet_" + model_type
+    name = 'floodnet_' + model_type
     patch_details = PatchDetails(32, 24, 102, 4000, 3000)
 
 
 if __name__ == "__main__":
-    setup(FloodNetDataset32Large.patch_details)
+    setup(FloodNetDataset32Small.patch_details)

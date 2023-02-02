@@ -24,7 +24,7 @@ def summarise_configs(dataset_list, n_param_func):
         row = [
             _format_model_type(model_type),
             "{:d} x {:d}".format(patch_details.grid_size_x, patch_details.grid_size_y),
-            "{:d} x {:d} px".format(patch_details.cell_size, patch_details.cell_size),
+            "{:d} x {:d} px".format(patch_details.cell_size_x, patch_details.cell_size_y),
             "{:d} x {:d} px".format(patch_details.patch_size, patch_details.patch_size),
             "{:d} x {:d} px".format(patch_details.effective_patch_resolution_x,
                                     patch_details.effective_patch_resolution_y),

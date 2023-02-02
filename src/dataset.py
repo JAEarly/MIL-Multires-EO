@@ -15,7 +15,7 @@ class PatchDetails:
         self.orig_img_size_x = orig_img_size_x
         self.orig_img_size_y = orig_img_size_y
         # Size of each cell (according to original image size and grid size)
-        self.cell_size = self._calculate_cell_size()
+        self.cell_size_x, self.cell_size_y = self._calculate_cell_size()
         # Total number of patches that will be extracted from each image (size of grid squared)
         self.num_patches = self._calculate_num_patches()
         # Effective resolution after extracting cells
@@ -43,15 +43,15 @@ class PatchDetails:
         cell_size_x = self.orig_img_size_x // self.grid_size_x
         cell_size_y = self.orig_img_size_y // self.grid_size_y
         if cell_size_x != cell_size_y:
-            raise ValueError('Invalid configuration: cell size must be the same in x and y (currently {:d} and {:d}'
-                             .format(cell_size_x, cell_size_y))
-        return cell_size_x
+            print('WARNING: Cell size is not the same in x and y (currently {:d} and {:d}).'
+                  'This may cause the aspect ratio to change.'.format(cell_size_x, cell_size_y))
+        return cell_size_x, cell_size_y
 
     def _calculate_num_patches(self):
         return self.grid_size_x * self.grid_size_y
 
     def _calculate_effective_cell_resolution(self):
-        return self.grid_size_x * self.cell_size, self.grid_size_y * self.cell_size
+        return self.grid_size_x * self.cell_size_x, self.grid_size_y * self.cell_size_y
 
     def _calculate_effective_patch_resolution(self):
         return self.grid_size_x * self.patch_size, self.grid_size_y * self.patch_size
@@ -70,6 +70,10 @@ class PatchDetailsSquare(PatchDetails):
     @property
     def grid_size(self):
         return self.grid_size_x
+
+    @property
+    def cell_size(self):
+        return self.cell_size_x
 
     @property
     def orig_img_size(self):

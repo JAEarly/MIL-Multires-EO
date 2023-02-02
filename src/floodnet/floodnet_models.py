@@ -10,6 +10,7 @@ from bonfire.model import aggregator as agg
 from bonfire.model import models
 from bonfire.model import modules as mod
 from floodnet.floodnet_dataset import FloodNetDataset
+from floodnet.floodnet_unet import FloodNetUNet
 
 
 def get_model_param(key):
@@ -25,8 +26,8 @@ def get_model_clz(model_type):
         return FloodNetInstanceSpaceNNLarge
     elif 'resnet' in model_type:
         return FloodNetResNet18
-    # elif 'unet' in model_type:
-    #     return DgrUNet
+    elif 'unet' in model_type:
+        return FloodNetUNet
     # elif model_type == 'multi_res_single_out':
     #     return DgrMultiResSingleOutNN
     # elif model_type == 'multi_res_multi_out':
