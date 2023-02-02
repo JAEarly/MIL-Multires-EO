@@ -30,7 +30,11 @@ def _get_patch_data_csv_path(cell_size):
 
 
 def get_dataset_list():
-    return [FloodNetDataset8Large, FloodNetDataset16Large, FloodNetDataset32Large]
+    return [
+        FloodNetDataset8Small, FloodNetDataset8Medium, FloodNetDataset8Large,
+        FloodNetDataset16Small, FloodNetDataset16Medium, FloodNetDataset16Large,
+        FloodNetDataset32Small, FloodNetDataset32Medium, FloodNetDataset32Large,
+    ]
 
 
 def setup(patch_details):
@@ -299,22 +303,58 @@ class FloodNetDataset(MilDataset, ABC):
         return data_dict
 
 
+class FloodNetDataset8Small(FloodNetDataset):
+    model_type = "8_small"
+    name = "floodnet_" + model_type
+    patch_details = PatchDetails(8, 6, 28, 4000, 3000)
+
+
+class FloodNetDataset16Small(FloodNetDataset):
+    model_type = "16_small"
+    name = "floodnet_" + model_type
+    patch_details = PatchDetails(16, 12, 28, 4000, 3000)
+
+
+class FloodNetDataset32Small(FloodNetDataset):
+    model_type = "32_small"
+    name = "floodnet_" + model_type
+    patch_details = PatchDetails(32, 24, 28, 4000, 3000)
+
+
+class FloodNetDataset8Medium(FloodNetDataset):
+    model_type = "8_medium"
+    name = "floodnet_" + model_type
+    patch_details = PatchDetails(8, 6, 56, 4000, 3000)
+
+
+class FloodNetDataset16Medium(FloodNetDataset):
+    model_type = "16_medium"
+    name = "floodnet_" + model_type
+    patch_details = PatchDetails(16, 12, 56, 4000, 3000)
+
+
+class FloodNetDataset32Medium(FloodNetDataset):
+    model_type = "32_medium"
+    name = "floodnet_" + model_type
+    patch_details = PatchDetails(32, 24, 56, 4000, 3000)
+
+
 class FloodNetDataset8Large(FloodNetDataset):
     model_type = "8_large"
     name = "floodnet_" + model_type
-    patch_details = PatchDetails(8, 6, 64, 4000, 3000)
+    patch_details = PatchDetails(8, 6, 102, 4000, 3000)
 
 
 class FloodNetDataset16Large(FloodNetDataset):
     model_type = "16_large"
     name = "floodnet_" + model_type
-    patch_details = PatchDetails(16, 12, 64, 4000, 3000)
+    patch_details = PatchDetails(16, 12, 102, 4000, 3000)
 
 
 class FloodNetDataset32Large(FloodNetDataset):
     model_type = "32_large"
     name = "floodnet_" + model_type
-    patch_details = PatchDetails(32, 24, 64, 4000, 3000)
+    patch_details = PatchDetails(32, 24, 102, 4000, 3000)
 
 
 if __name__ == "__main__":
