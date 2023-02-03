@@ -13,51 +13,13 @@ from tqdm import tqdm
 
 from bonfire.data.mil_dataset import MilDataset
 from bonfire.train.metrics import RegressionMetric, output_regression_results
-from dataset import PatchDetailsSquare, calculate_dataset_normalisation
-
+from dataset import PatchDetailsSquare
 
 RAW_DATA_DIR = 'data/DeepGlobeLUC/raw'
 PATCH_DATA_CSV_FMT = 'data/DeepGlobeLUC/patch_{:d}_data.csv'
 RECONSTRUCTION_DATA_DIR_FMT = 'data/DeepGlobeLUC/reconstruction_{:d}_{:d}'
 TARGET_OUT_PATH = 'data/DeepGlobeLUC/targets.csv'
 CLASS_DIST_PATH = 'data/DeepGlobeLUC/class_distribution.csv'
-
-
-def get_patch_details(model_type):
-    if model_type == "8_small":
-        return PatchDetailsSquare(8, 28, 2448)
-    elif model_type == "8_medium":
-        return PatchDetailsSquare(8, 56, 2448)
-    elif model_type == "8_large":
-        return PatchDetailsSquare(8, 102, 2448)
-    elif model_type == "16_small":
-        return PatchDetailsSquare(16, 28, 2448)
-    elif model_type == "16_medium":
-        return PatchDetailsSquare(16, 56, 2448)
-    elif model_type == "16_large":
-        return PatchDetailsSquare(16, 102, 2448)
-    elif model_type == "24_small":
-        return PatchDetailsSquare(24, 28, 2448)
-    elif model_type == "24_medium":
-        return PatchDetailsSquare(24, 56, 2448)
-    elif model_type == "24_large":
-        return PatchDetailsSquare(24, 102, 2448)
-    elif model_type == "32_small":
-        return PatchDetailsSquare(32, 28, 2448)
-    elif model_type == "32_medium":
-        return PatchDetailsSquare(32, 56, 2448)
-    elif model_type == "32_large":
-        return PatchDetailsSquare(32, 76, 2448)
-    elif "multi_res" in model_type:
-        return PatchDetailsSquare(8, 304, 2448)
-    elif model_type == "resnet":
-        return PatchDetailsSquare(1, 224, 2448)
-    elif model_type == "unet224":
-        return PatchDetailsSquare(1, 224, 2448)
-    elif model_type == "unet448":
-        return PatchDetailsSquare(1, 448, 2448)
-    else:
-        raise ValueError("No patch details registered for model type {:s}".format(model_type))
 
 
 def get_dataset_list():
@@ -294,9 +256,8 @@ class DgrLucDataset(MilDataset, ABC):
         transforms.Normalize(dataset_mean, dataset_std)
     ])
 
-    def __init__(self, bags, targets, instance_targets, bags_metadata, mask_paths):
+    def __init__(self, bags, targets, instance_targets, bags_metadata):
         super().__init__(bags, targets, instance_targets, bags_metadata)
-        self.mask_paths = mask_paths
         self.transform = self.basic_transform
 
     @classmethod
@@ -317,12 +278,22 @@ class DgrLucDataset(MilDataset, ABC):
         metadata_df = _load_metadata_df()
 
         bags = metadata_df['sat_image_path'].to_numpy()
-        bags_metadata = np.asarray([{'id': id_} for id_ in metadata_df['image_id'].tolist()])
         instance_targets = cls._parse_instance_targets(cls.patch_details.cell_size)
         targets = coverage_df[cls.get_clz_names()].to_numpy()
         mask_paths = metadata_df['mask_path'].to_numpy()
 
-        return bags, targets, instance_targets, bags_metadata, mask_paths
+        bags_metadata = []
+        for idx, bag_id in enumerate(metadata_df['image_id'].tolist()):
+            bag_metadata = {
+                'id': bag_id,
+                'grid_size_x': cls.patch_details.grid_size_x,
+                'grid_size_y': cls.patch_details.grid_size_y,
+                'mask_path': mask_paths[idx]
+            }
+            bags_metadata.append(bag_metadata)
+        bags_metadata = np.asarray(bags_metadata)
+
+        return bags, targets, instance_targets, bags_metadata
 
     @classmethod
     def _parse_instance_targets(cls, cell_size):
@@ -366,12 +337,12 @@ class DgrLucDataset(MilDataset, ABC):
 
     @classmethod
     def create_complete_dataset(cls):
-        bags, targets, instance_targets, bags_metadata, mask_paths = cls.load_dgr_bags()
-        return cls(bags, targets, instance_targets, bags_metadata, mask_paths)
+        bags, targets, instance_targets, bags_metadata = cls.load_dgr_bags()
+        return cls(bags, targets, instance_targets, bags_metadata)
 
     @classmethod
     def create_datasets(cls, random_state=12):
-        bags, targets, instance_targets, bags_metadata, mask_paths = cls.load_dgr_bags()
+        bags, targets, instance_targets, bags_metadata = cls.load_dgr_bags()
 
         for train_split, val_split, test_split in cls.get_dataset_splits(bags, targets, random_state=random_state):
             # Setup bags, targets, and metadata for splits
@@ -383,11 +354,10 @@ class DgrLucDataset(MilDataset, ABC):
                                            [instance_targets[i] for i in val_split], \
                                            [instance_targets[i] for i in test_split]
             train_md, val_md, test_md = bags_metadata[train_split], bags_metadata[val_split], bags_metadata[test_split]
-            train_mp, val_mp, test_mp = mask_paths[train_split], mask_paths[val_split], mask_paths[test_split]
 
-            train_dataset = cls(train_bags, train_targets, train_its, train_md, train_mp)
-            val_dataset = cls(val_bags, val_targets, val_its, val_md, val_mp)
-            test_dataset = cls(test_bags, test_targets, test_its, test_md, test_mp)
+            train_dataset = cls(train_bags, train_targets, train_its, train_md)
+            val_dataset = cls(val_bags, val_targets, val_its, val_md)
+            test_dataset = cls(test_bags, test_targets, test_its, test_md)
 
             yield train_dataset, val_dataset, test_dataset
 
@@ -434,15 +404,32 @@ class DgrLucDataset(MilDataset, ABC):
         print('  Avg: {:.1f}'.format(np.mean(bag_sizes)))
         print('  Max: {:d}'.format(max(bag_sizes)))
 
-    def get_mask_img(self, bag_idx):
-        mask_path = self.mask_paths[bag_idx]
-        mask_img = Image.open(mask_path)
-        return mask_img
-
     def get_sat_img(self, bag_idx):
         sat_path = self.bags[bag_idx]
         sat_img = Image.open(sat_path)
         return sat_img
+
+    def get_mask_img(self, bag_idx):
+        mask_path = self.bags_metadata[bag_idx]['mask_path']
+        mask_img = Image.open(mask_path)
+        return mask_img
+
+    @classmethod
+    def mask_img_to_clz_tensor(cls, mask_img):
+        # Threshold image to overcome colour variations
+        #  PIL img -> np arr -> torch tensor
+        mask_binary = make_binary_mask(torch.as_tensor(np.array(mask_img)))
+        # Convert thresholded tensor back to PIL image
+        #  torch tensor -> np arr -> PIL img
+        mask_img = Image.fromarray(mask_binary.numpy() * 255)
+
+        # Convert coloured mask image to clz mask tensor using the clz palette
+        clz_palette = cls.create_clz_palette()
+        p_img = Image.new('P', (2448, 2448))
+        p_img.putpalette(clz_palette)
+        mask_img = mask_img.quantize(palette=p_img, dither=0)
+        mask_clz_tensor = torch.as_tensor(np.array(mask_img))
+        return mask_clz_tensor
 
     def __getitem__(self, bag_idx):
         # Load original satellite and mask images
@@ -469,89 +456,102 @@ class DgrLucDataset(MilDataset, ABC):
                 if self.transform is not None:
                     instance = self.transform(instance)
                 instances.append(instance)
-        instances = torch.stack(instances)
-        target = self.targets[bag_idx]
-        instance_targets = self.instance_targets[bag_idx]
-        mask_path = self.mask_paths[bag_idx]
-        return instances, target, instance_targets, mask_path
+
+        # Get bag and metadata
+        bag = torch.stack(instances)
+        metadata = self.bags_metadata[bag_idx]
+
+        # Reshape instance targets to a grid
+        bag_instance_targets = self.instance_targets[bag_idx]
+        bag_instance_targets = bag_instance_targets.swapaxes(0, 1)
+        bag_instance_targets = bag_instance_targets.reshape(-1, metadata['grid_size_x'], metadata['grid_size_y'])
+
+        # Return data as a dict
+        data_dict = {
+            'bag': bag,
+            'target': self.targets[bag_idx],
+            'instance_targets': bag_instance_targets,
+            'bag_metadata': metadata,
+        }
+        return data_dict
 
 
 class DgrLucDataset8Small(DgrLucDataset):
     model_type = "8_small"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(8, 28, 2448)
 
 
 class DgrLucDataset8Medium(DgrLucDataset):
     model_type = "8_medium"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(8, 56, 2448)
 
 
 class DgrLucDataset8Large(DgrLucDataset):
     model_type = "8_large"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(8, 102, 2448)
 
 
 class DgrLucDataset16Small(DgrLucDataset):
     model_type = "16_small"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(16, 28, 2448)
 
 
 class DgrLucDataset16Medium(DgrLucDataset):
     model_type = "16_medium"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(16, 56, 2448)
 
 
 class DgrLucDataset16Large(DgrLucDataset):
     model_type = "16_large"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(16, 102, 2448)
 
 
 class DgrLucDataset24Small(DgrLucDataset):
     model_type = "24_small"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(24, 28, 2448)
 
 
 class DgrLucDataset24Medium(DgrLucDataset):
     model_type = "24_medium"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(24, 56, 2448)
 
 
 class DgrLucDataset24Large(DgrLucDataset):
     model_type = "24_large"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(24, 102, 2448)
 
 
 class DgrLucDataset32Small(DgrLucDataset):
     model_type = "32_small"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(32, 28, 2448)
 
 
 class DgrLucDataset32Medium(DgrLucDataset):
     model_type = "32_medium"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(32, 56, 2448)
 
 
 class DgrLucDataset32Large(DgrLucDataset):
     model_type = "32_large"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(32, 76, 2448)
 
 
 class DgrLucDatasetMultiResSingleOut(DgrLucDataset):
     model_type = "multi_res_single_out"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(8, 304, 2448)
 
     @classmethod
     @overrides
@@ -565,7 +565,7 @@ class DgrLucDatasetMultiResSingleOut(DgrLucDataset):
 class DgrLucDatasetMultiResMultiOut(DgrLucDataset):
     model_type = "multi_res_multi_out"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(8, 304, 2448)
 
     @classmethod
     @overrides
@@ -580,19 +580,19 @@ class DgrLucDatasetMultiResMultiOut(DgrLucDataset):
 class DgrLucDatasetResNet(DgrLucDataset):
     model_type = "resnet"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(1, 224, 2448)
 
 
 class DgrLucDatasetUNet224(DgrLucDataset):
     model_type = "unet224"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(1, 224, 2448)
 
 
 class DgrLucDatasetUNet448(DgrLucDataset):
     model_type = "unet448"
     name = "dgr_luc_" + model_type
-    patch_details = get_patch_details(model_type)
+    patch_details = PatchDetailsSquare(1, 224, 2448)
 
 
 if __name__ == "__main__":

@@ -50,7 +50,7 @@ def _format_model_type(model_type):
     if model_type == 'resnet':
         return 'ResNet18'
     elif 'unet' in model_type:
-        return 'UNet {:s}'.format(model_type[-3:])
+        return 'U-Net {:s}'.format(model_type[-3:])
     elif model_type == 'multi_res_single_out':
         return 'S2P Multi Res Single Out'
     elif model_type == 'multi_res_multi_out':

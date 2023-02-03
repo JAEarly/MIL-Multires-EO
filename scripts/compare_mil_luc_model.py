@@ -14,7 +14,7 @@ device = get_device()
 
 def run():
     model_types = ['8_large', '16_medium', '24_medium', 'unet224', 'unet448']
-    model_names = ['S2P 8', 'S2P 16', 'S2P 24', 'UNet 224', 'UNet 448']
+    model_names = ['S2P 8', 'S2P 16', 'S2P 24', 'U-Net 224', 'U-Net 448']
     model_idxs = [2, 4, 2, 2, 2]
     n_models = len(model_types)
     study_id = 340798

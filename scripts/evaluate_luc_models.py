@@ -11,29 +11,47 @@ from bonfire.train.metrics import output_results, IoUMetric
 from bonfire.train.trainer import create_trainer_from_clzs, create_normal_dataloader
 from bonfire.util import get_device, load_model
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-from deepglobe.dgr_luc_dataset import get_dataset_clz, get_model_type_list, make_binary_mask
-from deepglobe.dgr_luc_models import get_model_clz
+from dataset import get_dataset_clz, get_model_type_list
+from deepglobe import dgr_luc_dataset
+from deepglobe.dgr_luc_models import get_model_clz as get_model_clz_dgr
+from floodnet import floodnet_dataset
+from floodnet.floodnet_models import get_model_clz as get_model_clz_floodnet
 
 device = get_device()
-all_models = get_model_type_list()
-model_type_choices = all_models + ['all']
+dataset_choices = ["dgr", "floodnet"]
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Builtin PyTorch MIL training script.')
-    parser.add_argument('model_types', choices=model_type_choices, nargs='+', help='The models to evaluate.')
+    parser.add_argument('dataset', choices=dataset_choices, help="Dataset to train on.")
+    parser.add_argument('model_types', nargs='+', help='The models to evaluate.')
     parser.add_argument('-r', '--n_repeats', default=1, type=int, help='The number of models to evaluate (>=1).')
     args = parser.parse_args()
-    return args.model_types, args.n_repeats
+    return args.dataset, args.model_types, args.n_repeats
 
 
 def run_evaluation():
     wandb.init()
 
-    model_types, n_repeats = parse_args()
+    dataset_name, model_types, n_repeats = parse_args()
 
+    # Get list of datasets for the given dataset type
+    if dataset_name == 'dgr':
+        dataset_list = dgr_luc_dataset.get_dataset_list()
+    elif dataset_name == 'floodnet':
+        dataset_list = floodnet_dataset.get_dataset_list()
+    else:
+        raise ValueError('No dataset list for dataset {:s}'.format(dataset_name))
+
+    # Get list of models to evaluate, either all or check that all requested models exist for the given dataset type
+    model_type_choices = get_model_type_list(dataset_list)
     if model_types == ['all']:
-        model_types = all_models
+        model_types = model_type_choices
+    else:
+        for model_type in model_types:
+            if model_type not in model_type_choices:
+                raise ValueError(
+                    'Model type {:s} not found in model types for dataset {:s}'.format(model_type, dataset_name))
 
     # print('Getting results for dataset {:s}'.format(dataset_name))
     print('Running for models: {:}'.format(model_types))
@@ -44,10 +62,18 @@ def run_evaluation():
     for model_idx, model_type in enumerate(model_types):
         print('Evaluating {:s}'.format(model_type))
 
-        model_clz = get_model_clz(model_type)
-        dataset_clz = get_dataset_clz(model_type)
+        # Get dataset clz
+        dataset_clz = get_dataset_clz(model_type, dataset_list)
 
-        config_path = "config/dgr_luc_config.yaml"
+        # Get model clz
+        if dataset_name == 'dgr':
+            model_clz = get_model_clz_dgr(model_type)
+        elif dataset_name == 'floodnet':
+            model_clz = get_model_clz_floodnet(model_type)
+        else:
+            raise ValueError('No models for dataset {:s}'.format(dataset_name))
+
+        config_path = "config/model_config.yaml"
         config = parse_yaml_config(config_path)
         training_config = parse_training_config(config['training'], model_type)
         wandb.config.update(training_config, allow_val_change=True)
@@ -116,17 +142,20 @@ def eval_model(model_type, bag_metric, model, dataloader, verbose=False, lim=Non
     all_targets = []
     all_instance_preds = []
     all_instance_targets = []
-    all_mask_paths = []
+    all_metadatas = []
     labels = list(range(model.n_classes))
     model.eval()
     n = 0
     with torch.no_grad():
         for data in tqdm(dataloader, desc='Getting model predictions', leave=False):
-            bags, targets, instance_targets, mask_path = data[0], data[1], data[2], data[3]
-            bag_pred, instance_pred = model.forward_verbose(bags)
+            bags = data['bag']
+            instance_targets = data['instance_targets']
+            targets = data['target']
+            metadata = data['bag_metadata']
+            bag_pred, instance_pred = model.forward_verbose(bags, input_metadata=metadata)
             all_preds.append(bag_pred.cpu())
             all_targets.append(targets.cpu())
-            all_mask_paths.append(mask_path[0])
+            all_metadatas.append(metadata)
             instance_pred = instance_pred[0]
             if instance_pred is not None:
                 all_instance_preds.append(instance_pred.squeeze().cpu())
@@ -151,17 +180,12 @@ def eval_model(model_type, bag_metric, model, dataloader, verbose=False, lim=Non
         all_instance_targets = torch.stack(all_instance_targets)
         if 'unet' in model_type:
             # No evaluation for grid segmentation
-            seg_results = evaluate_iou_segmentation(dataloader.dataset, all_instance_preds, labels, all_mask_paths)
+            seg_results = evaluate_iou_segmentation(all_instance_preds, labels, all_metadatas,
+                                                    dataloader.dataset.mask_img_to_clz_tensor)
         elif model_type != 'resnet':
-            # Wrangle targets to grid shape
-            #  Swap class and instance axes
-            #  Reshape to match the image grid
-            grid_size = int(all_instance_targets.shape[1] ** 0.5)
-            grid_targets = all_instance_targets\
-                .swapaxes(1, 2)\
-                .reshape(all_instance_targets.shape[0], len(labels), grid_size, grid_size)
-            grid_results = evaluate_iou_grid(all_instance_preds, grid_targets, labels)
-            seg_results = evaluate_iou_segmentation(dataloader.dataset, all_instance_preds, labels, all_mask_paths)
+            grid_results = evaluate_iou_grid(all_instance_preds, all_instance_targets, labels)
+            seg_results = evaluate_iou_segmentation(all_instance_preds, labels, all_metadatas,
+                                                    dataloader.dataset.mask_img_to_clz_tensor)
 
     instance_results = [grid_results, seg_results]
     if verbose:
@@ -178,7 +202,7 @@ def evaluate_iou_grid(grid_predictions, grid_targets, labels):
     return IoUMetric.calculate_metric(grid_clz_predictions, grid_clz_targets, labels)
 
 
-def evaluate_iou_segmentation(dataset, all_grid_predictions, labels, mask_paths):
+def evaluate_iou_segmentation(all_grid_predictions, labels, metadatas, mask_img_to_clz_tensor_func):
     """
     Evaluate IoU against original high res segmented images by scaling up the low resolution grid predictions
     """
@@ -190,26 +214,14 @@ def evaluate_iou_segmentation(dataset, all_grid_predictions, labels, mask_paths)
     for idx, grid_clz_predictions in tqdm(enumerate(all_grid_clz_predictions), desc='Computing high res mIOU',
                                           leave=False, total=len(all_grid_clz_predictions)):
         # Load true mask image to compare to
-        mask_img = Image.open(mask_paths[idx])
-
-        # Threshold image to overcome colour variations
-        #  PIL img -> np arr -> torch tensor
-        mask_binary = make_binary_mask(torch.as_tensor(np.array(mask_img)))
-        # Convert thresholded tensor back to PIL image
-        #  torch tensor -> np arr -> PIL img
-        mask_img = Image.fromarray(mask_binary.numpy() * 255)
-
-        # Convert coloured mask image to clz mask tensor using the clz palette
-        clz_palette = dataset.create_clz_palette()
-        p_img = Image.new('P', (2448, 2448))
-        p_img.putpalette(clz_palette)
-        mask_img = mask_img.quantize(palette=p_img, dither=0)
-        mask_clz_tensor = torch.as_tensor(np.array(mask_img))
+        mask_img = Image.open(metadatas[idx]['mask_path'][0])
+        mask_clz_tensor = mask_img_to_clz_tensor_func(mask_img)
 
         # Scale up grid predictions to same size as original image
         #  Have to double unsqueeze to add batch and channel dimensions so interpolation acts in the correct dimensions
+        #  This is specific requirement of the F.interpolate method (requires batch and channel args)
         pred_clz_tensor = F.interpolate(grid_clz_predictions.float().unsqueeze(0).unsqueeze(0),
-                                        size=(2448, 2448), mode='nearest-exact')
+                                        size=mask_clz_tensor.shape, mode='nearest-exact')
         pred_clz_tensor = pred_clz_tensor.squeeze().long()
 
         # Compute intersection and union for this bag (used to calculate an overall IOU later)

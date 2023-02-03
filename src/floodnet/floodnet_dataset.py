@@ -215,7 +215,6 @@ class FloodNetDataset(MilDataset, ABC):
         mask_paths = split_df['mask_path'].to_numpy()
 
         # Set up bag metadata with bag id, grid size x, and grid size y
-        # TODO Refactor this to avoid making mask paths array?
         bags_metadata = []
         for idx, bag_id in enumerate(split_df['image_id'].tolist()):
             bag_metadata = {
@@ -269,6 +268,11 @@ class FloodNetDataset(MilDataset, ABC):
             test_dataset = cls(test_bags, test_targets, test_its, test_md)
             yield train_dataset, val_dataset, test_dataset
 
+    @staticmethod
+    def mask_img_to_clz_tensor(mask_img):
+        mask_clz_tensor = torch.as_tensor(np.array(mask_img))
+        return mask_clz_tensor
+
     def __getitem__(self, bag_idx):
         # Load original satellite and mask images
         sat_path = self.bags[bag_idx]
@@ -294,14 +298,22 @@ class FloodNetDataset(MilDataset, ABC):
                 if self.transform is not None:
                     instance = self.transform(instance)
                 instances.append(instance)
+
+        # Get bag and metadata
         bag = torch.stack(instances)
+        metadata = self.bags_metadata[bag_idx]
+
+        # Reshape instance targets to a grid
+        bag_instance_targets = self.instance_targets[bag_idx]
+        bag_instance_targets = bag_instance_targets.swapaxes(0, 1)
+        bag_instance_targets = bag_instance_targets.reshape(-1, metadata['grid_size_x'], metadata['grid_size_y'])
 
         # Return required data as a dict
         data_dict = {
             'bag': bag,
             'target': self.targets[bag_idx],
-            'instance_targets': self.instance_targets[bag_idx],
-            'bag_metadata': self.bags_metadata[bag_idx],
+            'instance_targets': bag_instance_targets,
+            'bag_metadata': metadata,
         }
         return data_dict
 
