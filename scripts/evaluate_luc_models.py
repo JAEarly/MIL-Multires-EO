@@ -105,7 +105,7 @@ def evaluate(model_type, n_repeats, trainer, random_state=5):
     for train_dataset, val_dataset, test_dataset in trainer.dataset_clz.create_datasets(random_state=random_state):
         print('Repeat {:d}/{:d}'.format(r + 1, n_repeats))
 
-        train_dataloader = trainer.create_dataloader(train_dataset, True, 0)
+        train_dataloader = trainer.create_dataloader(train_dataset, False, 0)
         val_dataloader = trainer.create_dataloader(val_dataset, False, 0)
         test_dataloader = trainer.create_dataloader(test_dataset, False, 0)
         model = load_model(device, trainer.dataset_clz.name, trainer.model_clz, modifier=r)
@@ -223,6 +223,22 @@ def evaluate_iou_segmentation(all_grid_predictions, labels, metadatas, mask_img_
         pred_clz_tensor = F.interpolate(grid_clz_predictions.float().unsqueeze(0).unsqueeze(0),
                                         size=mask_clz_tensor.shape, mode='nearest-exact')
         pred_clz_tensor = pred_clz_tensor.squeeze().long()
+
+        # ----- Visual check -----
+        # print(mask_clz_tensor.shape)
+        # print(grid_clz_predictions.shape)
+        # print(pred_clz_tensor.shape)
+        # img = Image.open('data/FloodNet/train/train-org-img/{:d}.jpg'.format(metadatas[idx]['id'].item()))
+        # from matplotlib import pyplot as plt
+        # fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(12, 7))
+        # axes[0][0].imshow(img)
+        # axes[0][1].imshow(mask_img, cmap='tab10', vmin=0, vmax=10)
+        # axes[0][2].imshow(torch.transpose(mask_clz_tensor, 0, 1), cmap='tab10', vmin=0, vmax=10)
+        # axes[1][1].imshow(torch.transpose(pred_clz_tensor, 0, 1), cmap='tab10', vmin=0, vmax=10)
+        # axes[1][2].imshow(torch.transpose(grid_clz_predictions, 0, 1), cmap='tab10', vmin=0, vmax=10)
+        # plt.tight_layout()
+        # plt.show()
+        # ----- Visual check -----
 
         # Compute intersection and union for this bag (used to calculate an overall IOU later)
         _, _, conf_mat = IoUMetric.intersection_over_union(mask_clz_tensor, pred_clz_tensor, len(labels))

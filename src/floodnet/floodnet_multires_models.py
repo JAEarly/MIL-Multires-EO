@@ -5,7 +5,7 @@ from torch import nn
 from bonfire.model import aggregator as agg
 from bonfire.model import modules as mod
 from bonfire.model.models import MultipleInstanceNN
-from deepglobe.dgr_luc_dataset import DgrLucDataset
+from floodnet.floodnet_dataset import FloodNetDataset
 from matplotlib import pyplot as plt
 from abc import ABC
 
@@ -16,13 +16,13 @@ def get_model_param(key):
     return wandb.config[key]
 
 
-DGR_D_CONV_OUT = 2744
-DGR_D_ENC = 128
-DGR_DS_ENC_HID = (512,)
-DGR_DS_AGG_HID = (64,)
+FLOODNET_D_CONV_OUT = 5600
+FLOODNET_DS_ENC_HID = (512,)
+FLOODNET_D_ENC = 128
+FLOODNET_DS_AGG_HID = (64,)
 
 
-class DgrEncoderMultiResEncoder(nn.Module):
+class FloodNetEncoderMultiRes(nn.Module):
 
     def __init__(self, dropout):
         super().__init__()
@@ -30,7 +30,7 @@ class DgrEncoderMultiResEncoder(nn.Module):
         conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
         conv3 = mod.ConvBlock(c_in=48, c_out=56, kernel_size=3, stride=1, padding=0)
         self.fe = nn.Sequential(conv1, conv2, conv3)
-        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT, DGR_DS_ENC_HID, DGR_D_ENC,
+        self.fc_stack = mod.FullyConnectedStack(FLOODNET_D_CONV_OUT, FLOODNET_DS_ENC_HID, FLOODNET_D_ENC,
                                                 final_activation_func=None, dropout=dropout)
 
     def forward(self, instances):
@@ -40,87 +40,105 @@ class DgrEncoderMultiResEncoder(nn.Module):
         return x
 
 
-class DgrMultiResNN(MultipleInstanceNN, ABC):
+class FloodNetMultiResNN(MultipleInstanceNN, ABC):
 
     def __init__(self, device):
-        super().__init__(device, DgrLucDataset.n_classes, DgrLucDataset.n_expected_dims)
+        super().__init__(device, FloodNetDataset.n_classes, FloodNetDataset.n_expected_dims)
         self.dropout = get_model_param("dropout")
         self.agg_func = get_model_param("agg_func")
 
-        self.s0_encoder = DgrEncoderMultiResEncoder(self.dropout)
-        self.s1_encoder = DgrEncoderMultiResEncoder(self.dropout)
-        self.s2_encoder = DgrEncoderMultiResEncoder(self.dropout)
+        self.s0_encoder = FloodNetEncoderMultiRes(self.dropout)
+        self.s1_encoder = FloodNetEncoderMultiRes(self.dropout)
+        self.s2_encoder = FloodNetEncoderMultiRes(self.dropout)
 
-        self.sm_aggregator = agg.InstanceAggregator(DGR_D_ENC * 3, DGR_DS_AGG_HID, DgrLucDataset.n_classes,
+        self.sm_aggregator = agg.InstanceAggregator(FLOODNET_D_ENC * 3, FLOODNET_DS_AGG_HID, FloodNetDataset.n_classes,
                                                     self.dropout, self.agg_func)
 
-        self.patch_transform = Resize(76)
+        self.patch_transform = Resize(102)
 
     def _apply_patch_transform(self, instance_grid):
         # Instance grid should be 5d: P_X x P_Y x C x H x W
-        g, c, h, w = instance_grid.shape[0], instance_grid.shape[2], instance_grid.shape[3], instance_grid.shape[4]
-        # Flatten first
+        p_x, p_y, c, h, w = instance_grid.shape
+        # Flatten (removing p_x, p_y -> p_x * p_y)
         flat_grid = torch.reshape(instance_grid, (-1, c, h, w))
         # Apply transformation (resizing)
         transformed_patches = self.patch_transform(flat_grid)
         # Arrange back to grid
-        grid_out = torch.reshape(transformed_patches, (g, g, c, 76, 76))
+        grid_out = torch.reshape(transformed_patches, (p_x, p_y, c, 102, 102))
         return grid_out
 
     @staticmethod
-    def _reconstruct_img_from_grid(grid_patches, grid_size, patch_size=76):
-        reconstruction = torch.zeros(patch_size * grid_size, patch_size * grid_size, 3)
-        for x in range(grid_size):
-            for y in range(grid_size):
+    def _reconstruct_img_from_grid(grid_patches, grid_size_x, grid_size_y, patch_size=102):
+        reconstruction = torch.zeros(patch_size * grid_size_x, patch_size * grid_size_y, 3)
+        for x in range(grid_size_x):
+            for y in range(grid_size_y):
                 reconstruction[patch_size * x:patch_size * (x + 1), patch_size * y:patch_size * (y + 1), :] = \
                     torch.permute(grid_patches[x, y], (1, 2, 0))
         return reconstruction
 
-    def _show_reconstructions(self, orig_instances, s0_instances, s1_instances, s2_instances):
-        orig_reconstruction = self._reconstruct_img_from_grid(orig_instances, 8, patch_size=304)
-        s0_reconstruction = self._reconstruct_img_from_grid(s0_instances, 8)
-        s1_reconstruction = self._reconstruct_img_from_grid(s1_instances, 16)
-        s2_reconstruction = self._reconstruct_img_from_grid(s2_instances, 32)
+    def _show_reconstructions(self, orig_img, orig_instances, s0_instances, s1_instances, s2_instances):
+        orig_reconstruction = self._reconstruct_img_from_grid(orig_instances, 8, 6, patch_size=500)
+        s0_reconstruction = self._reconstruct_img_from_grid(s0_instances, 8, 6)
+        s1_reconstruction = self._reconstruct_img_from_grid(s1_instances, 16, 12)
+        s2_reconstruction = self._reconstruct_img_from_grid(s2_instances, 32, 24)
 
-        fig, axes = plt.subplots(nrows=1, ncols=4)
-        axes[0].imshow(orig_reconstruction.detach().cpu())
-        axes[1].imshow(s0_reconstruction.detach().cpu())
-        axes[2].imshow(s1_reconstruction.detach().cpu())
-        axes[3].imshow(s2_reconstruction.detach().cpu())
+        print(orig_img.width, orig_img.height)
+        print(orig_reconstruction.shape)
+        print(s0_reconstruction.shape)
+        print(s1_reconstruction.shape)
+        print(s2_reconstruction.shape)
+
+        fig, axes = plt.subplots(nrows=1, ncols=5)
+        axes[0].imshow(orig_img)
+        axes[1].imshow(torch.transpose(orig_reconstruction.detach().cpu(), 0, 1))
+        axes[2].imshow(torch.transpose(s0_reconstruction.detach().cpu(), 0, 1))
+        axes[3].imshow(torch.transpose(s1_reconstruction.detach().cpu(), 0, 1))
+        axes[4].imshow(torch.transpose(s2_reconstruction.detach().cpu(), 0, 1))
         plt.show()
 
-    def _forward_encode(self, instances):
+    def _forward_encode(self, instances, bags_metadata):
         instances = instances.to(self.device)
         n_instances, n_channels = instances.shape[0], instances.shape[1]
 
-        # Reshape instances to grid
-        instances = instances.reshape(8, 8, n_channels, 304, 304)
+        print(bags_metadata)
 
-        # Extract S0 instances - Cell size 304 x 304 px; 8 x 8 grid
-        #  Resize to 76 x 76; Eff res 608 x 608 px (6.2%)
+        from PIL import Image
+        img = Image.open('data/FloodNet/train/train-org-img/{:d}.jpg'.format(bags_metadata['id'].item()))
+
+        # TODO remove magic numbers
+        # Reshape instances to grid
+        instances = instances.reshape(8, 6, n_channels, 500, 500)
+
+        # Extract S0 instances - Cell size 500 x 500 px; 8 x 6 grid
+        #  Resize to 102 x 102 px; Eff res 816 x 612 px (4.2%)
         s0_instances = self._apply_patch_transform(instances)
 
-        # Extract S1 instances - Cell size 152 x 152 px; 16 x 16 grid
-        #  Resize to 76 x 76; Eff res 1,216 x 1,216 px (24.7%)
-        s1_splits = torch.zeros(16, 16, n_channels, 152, 152).to(self.device)
-        s1_splits[::2, ::2, :, :, :] = instances[:, :, :, :152, :152]
-        s1_splits[::2, 1::2, :, :, :] = instances[:, :, :, :152, 152:]
-        s1_splits[1::2, ::2, :, :, :] = instances[:, :, :, 152:, :152]
-        s1_splits[1::2, 1::2, :, :, :] = instances[:, :, :, 152:, 152:]
+        # Extract S1 instances - Cell size 250 x 250 px; 16 x 12 grid
+        #  Resize to 102 x 102 px; Eff res 1,632 x 1,224 px (16.6%)
+        s1_splits = torch.zeros(16, 12, n_channels, 250, 250).to(self.device)
+        s1_splits[::2, ::2, :, :, :] = instances[:, :, :, :250, :250]
+        s1_splits[::2, 1::2, :, :, :] = instances[:, :, :, :250, 250:]
+        s1_splits[1::2, ::2, :, :, :] = instances[:, :, :, 250:, :250]
+        s1_splits[1::2, 1::2, :, :, :] = instances[:, :, :, 250:, 250:]
         s1_instances = self._apply_patch_transform(s1_splits)
 
-        # Extract S2 instances - Cell size 76 x 76 px; 32 x 32 grid
-        #  No resizing needed; Eff res 2432 x 2432 px (98.7%)
-        s2_instances = torch.zeros(32, 32, n_channels, 76, 76).to(self.device)
+        # Extract S2 instances - Cell size 125 x 125 px; 32 x 24 grid
+        #  Resize to 102 x 102 px; Eff res 3264 x 2448 px (66.6%)
+        s2_splits = torch.zeros(32, 24, n_channels, 125, 125).to(self.device)
         for x in range(4):
             for y in range(4):
-                s2_instances[x::4, y::4, :, :, :] = \
-                    instances[:, :, :, 76 * x:76 * (x + 1), 76 * y:76 * (y + 1)]
+                s2_splits[x::4, y::4, :, :, :] = \
+                    instances[:, :, :, 125 * x:125 * (x + 1), 125 * y:125 * (y + 1)]
+        s2_instances = self._apply_patch_transform(s2_splits)
+
+        self._show_reconstructions(img, instances, s0_instances, s1_instances, s2_instances)
+        # self._show_reconstructions(img, instances, None, None, None)
+        exit(0)
 
         # Encode s0, s1, and s2 patches
-        s0_embeddings = self.s0_encoder(torch.reshape(s0_instances, (-1, 3, 76, 76)))
-        s1_embeddings = self.s1_encoder(torch.reshape(s1_instances, (-1, 3, 76, 76)))
-        s2_embeddings = self.s2_encoder(torch.reshape(s2_instances, (-1, 3, 76, 76)))
+        s0_embeddings = self.s0_encoder(torch.reshape(s0_instances, (-1, 3, 102, 102)))
+        s1_embeddings = self.s1_encoder(torch.reshape(s1_instances, (-1, 3, 102, 102)))
+        s2_embeddings = self.s2_encoder(torch.reshape(s2_instances, (-1, 3, 102, 102)))
 
         # Create main embeddings (sm) by stacking s0, s1, and s2 embedding
         s0_embeddings_r = torch.repeat_interleave(s0_embeddings, 16, dim=0)
@@ -139,7 +157,7 @@ class DgrMultiResNN(MultipleInstanceNN, ABC):
         return ins_preds.reshape(-1, grid_size, grid_size)
 
 
-class DgrMultiResSingleOutNN(DgrMultiResNN):
+class FloodNetMultiResSingleOutNN(FloodNetMultiResNN):
 
     name = "MultiResSingleOutNN"
 
@@ -151,7 +169,7 @@ class DgrMultiResSingleOutNN(DgrMultiResNN):
         all_instance_predictions = []
         for i, instances in enumerate(bags):
             # Get combined embeddings
-            _, _, _, sm_embeddings = self._forward_encode(instances)
+            _, _, _, sm_embeddings = self._forward_encode(instances, bags_metadata)
 
             # Classify instances and aggregate at each scale
             #  Here, the instance interpretations are actually predictions
@@ -169,17 +187,17 @@ class DgrMultiResSingleOutNN(DgrMultiResNN):
         return bag_predictions, all_instance_predictions
 
 
-class DgrMultiResMultiOutNN(DgrMultiResNN):
+class FloodNetMultiResMultiOutNN(FloodNetMultiResNN):
 
     name = "MultiResMultiOutNN"
 
     def __init__(self, device):
         super().__init__(device)
-        self.s0_aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes,
+        self.s0_aggregator = agg.InstanceAggregator(FLOODNET_D_ENC, FLOODNET_DS_AGG_HID, FloodNetDataset.n_classes,
                                                     self.dropout, self.agg_func)
-        self.s1_aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes,
+        self.s1_aggregator = agg.InstanceAggregator(FLOODNET_D_ENC, FLOODNET_DS_AGG_HID, FloodNetDataset.n_classes,
                                                     self.dropout, self.agg_func)
-        self.s2_aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, DgrLucDataset.n_classes,
+        self.s2_aggregator = agg.InstanceAggregator(FLOODNET_D_ENC, FLOODNET_DS_AGG_HID, FloodNetDataset.n_classes,
                                                     self.dropout, self.agg_func)
 
     def _internal_forward(self, bags, bags_metadata=None):

@@ -11,6 +11,7 @@ from bonfire.model import models
 from bonfire.model import modules as mod
 from floodnet.floodnet_dataset import FloodNetDataset
 from floodnet.floodnet_unet import FloodNetUNet
+from floodnet.floodnet_multires_models import FloodNetMultiResSingleOutNN
 
 
 def get_model_param(key):
@@ -28,8 +29,8 @@ def get_model_clz(model_type):
         return FloodNetResNet18
     elif 'unet' in model_type:
         return FloodNetUNet
-    # elif model_type == 'multi_res_single_out':
-    #     return DgrMultiResSingleOutNN
+    elif model_type == 'multi_res_single_out':
+        return FloodNetMultiResSingleOutNN
     # elif model_type == 'multi_res_multi_out':
     #     return DgrMultiResMultiOutNN
     raise ValueError('No model class found for model type {:s}'.format(model_type))
@@ -41,12 +42,12 @@ def get_n_params(model_type):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-DGR_D_CONV_OUT_SMALL = 1200
-DGR_D_CONV_OUT_MEDIUM = 6912
-DGR_D_CONV_OUT_LARGE = 5600
-DGR_DS_ENC_HID = (512,)
-DGR_D_ENC = 128
-DGR_DS_AGG_HID = (64,)
+FLOODNET_D_CONV_OUT_SMALL = 1200
+FLOODNET_D_CONV_OUT_MEDIUM = 6912
+FLOODNET_D_CONV_OUT_LARGE = 5600
+FLOODNET_DS_ENC_HID = (512,)
+FLOODNET_D_ENC = 128
+FLOODNET_DS_AGG_HID = (64,)
 
 
 class FloodNetSceneToPatchNN(models.InstanceSpaceNN, ABC):
@@ -61,7 +62,9 @@ class FloodNetSceneToPatchNN(models.InstanceSpaceNN, ABC):
 
             # Reshape to grid
             # TODO Use of bags metadata ignores batching
-            patch_preds = patch_preds.reshape(-1, bags_metadata['grid_size_x'], bags_metadata['grid_size_y'])
+            # Manually compensate for the image orientation being incorrect
+            patch_preds = patch_preds.reshape(-1, bags_metadata['grid_size_y'], bags_metadata['grid_size_x'])
+            patch_preds = torch.transpose(patch_preds, 1, 2)
 
             # Add to overall list
             bag_patch_instance_predictions.append(patch_preds)
@@ -75,7 +78,7 @@ class FloodNetEncoderSmall(nn.Module):
         conv1 = mod.ConvBlock(c_in=3, c_out=36, kernel_size=4, stride=1, padding=0)
         conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
         self.fe = nn.Sequential(conv1, conv2)
-        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT_SMALL, DGR_DS_ENC_HID, DGR_D_ENC,
+        self.fc_stack = mod.FullyConnectedStack(FLOODNET_D_CONV_OUT_SMALL, FLOODNET_DS_ENC_HID, FLOODNET_D_ENC,
                                                 final_activation_func=None, dropout=dropout)
 
     def forward(self, instances):
@@ -92,7 +95,7 @@ class FloodNetEncoderMedium(nn.Module):
         conv1 = mod.ConvBlock(c_in=3, c_out=36, kernel_size=4, stride=1, padding=0)
         conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
         self.fe = nn.Sequential(conv1, conv2)
-        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT_MEDIUM, DGR_DS_ENC_HID, DGR_D_ENC,
+        self.fc_stack = mod.FullyConnectedStack(FLOODNET_D_CONV_OUT_MEDIUM, FLOODNET_DS_ENC_HID, FLOODNET_D_ENC,
                                                 final_activation_func=None, dropout=dropout)
 
     def forward(self, instances):
@@ -110,7 +113,7 @@ class FloodNetEncoderLarge(nn.Module):
         conv2 = mod.ConvBlock(c_in=36, c_out=48, kernel_size=3, stride=1, padding=0)
         conv3 = mod.ConvBlock(c_in=48, c_out=56, kernel_size=3, stride=1, padding=0)
         self.fe = nn.Sequential(conv1, conv2, conv3)
-        self.fc_stack = mod.FullyConnectedStack(DGR_D_CONV_OUT_LARGE, DGR_DS_ENC_HID, DGR_D_ENC,
+        self.fc_stack = mod.FullyConnectedStack(FLOODNET_D_CONV_OUT_LARGE, FLOODNET_DS_ENC_HID, FLOODNET_D_ENC,
                                                 final_activation_func=None, dropout=dropout)
 
     def forward(self, instances):
@@ -126,7 +129,7 @@ class FloodNetInstanceSpaceNNSmall(FloodNetSceneToPatchNN):
         dropout = get_model_param("dropout")
         agg_func = get_model_param("agg_func")
         encoder = FloodNetEncoderSmall(dropout)
-        aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, FloodNetDataset.n_classes, dropout, agg_func)
+        aggregator = agg.InstanceAggregator(FLOODNET_D_ENC, FLOODNET_DS_AGG_HID, FloodNetDataset.n_classes, dropout, agg_func)
         super().__init__(device, FloodNetDataset.n_classes, FloodNetDataset.n_expected_dims, encoder, aggregator)
 
 
@@ -136,7 +139,7 @@ class FloodNetInstanceSpaceNNMedium(FloodNetSceneToPatchNN):
         dropout = get_model_param("dropout")
         agg_func = get_model_param("agg_func")
         encoder = FloodNetEncoderMedium(dropout)
-        aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, FloodNetDataset.n_classes, dropout, agg_func)
+        aggregator = agg.InstanceAggregator(FLOODNET_D_ENC, FLOODNET_DS_AGG_HID, FloodNetDataset.n_classes, dropout, agg_func)
         super().__init__(device, FloodNetDataset.n_classes, FloodNetDataset.n_expected_dims, encoder, aggregator)
 
 
@@ -146,7 +149,7 @@ class FloodNetInstanceSpaceNNLarge(FloodNetSceneToPatchNN):
         dropout = get_model_param("dropout")
         agg_func = get_model_param("agg_func")
         encoder = FloodNetEncoderLarge(dropout)
-        aggregator = agg.InstanceAggregator(DGR_D_ENC, DGR_DS_AGG_HID, FloodNetDataset.n_classes, dropout, agg_func)
+        aggregator = agg.InstanceAggregator(FLOODNET_D_ENC, FLOODNET_DS_AGG_HID, FloodNetDataset.n_classes, dropout, agg_func)
         super().__init__(device, FloodNetDataset.n_classes, FloodNetDataset.n_expected_dims, encoder, aggregator)
 
 

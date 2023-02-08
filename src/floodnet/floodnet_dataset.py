@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
+from overrides import overrides
 from torchvision import transforms
 from tqdm import tqdm
 
@@ -35,6 +36,7 @@ def get_dataset_list():
         FloodNetDataset8Small, FloodNetDataset8Medium, FloodNetDataset8Large,
         FloodNetDataset16Small, FloodNetDataset16Medium, FloodNetDataset16Large,
         FloodNetDataset32Small, FloodNetDataset32Medium, FloodNetDataset32Large,
+        FloodNetDatasetMultiResSingleOut,
     ]
 
 
@@ -229,8 +231,10 @@ class FloodNetDataset(MilDataset, ABC):
         return bags, targets, instance_targets, bags_metadata
 
     @classmethod
-    def _parse_instance_targets(cls, metadata_df):
-        patches_df = pd.read_csv(_get_patch_data_csv_path(cls.patch_details.cell_size_x))
+    def _parse_instance_targets(cls, metadata_df, cell_size_x=None):
+        if cell_size_x is None:
+            cell_size_x = cls.patch_details.cell_size_x
+        patches_df = pd.read_csv(_get_patch_data_csv_path(cell_size_x))
         # coverage_df = cls.load_per_class_coverage()
         instance_targets = []
         for image_id in metadata_df['image_id']:
@@ -270,7 +274,7 @@ class FloodNetDataset(MilDataset, ABC):
 
     @staticmethod
     def mask_img_to_clz_tensor(mask_img):
-        mask_clz_tensor = torch.as_tensor(np.array(mask_img))
+        mask_clz_tensor = torch.as_tensor(np.array(mask_img).T)
         return mask_clz_tensor
 
     def __getitem__(self, bag_idx):
@@ -282,6 +286,8 @@ class FloodNetDataset(MilDataset, ABC):
         img = img.resize((self.patch_details.effective_patch_resolution_x,
                           self.patch_details.effective_patch_resolution_y))
         img_arr = np.array(img)
+        # TODO this is technically orientated incorrectly but models are already trained this way - fixed in evaluation
+        # img_arr = np.transpose(img_arr, (1, 0, 2))
 
         # Iterate through each cell in the grid
         instances = []
@@ -388,6 +394,22 @@ class FloodNetDataset32Large(FloodNetDataset):
     model_type = "32_large"
     name = 'floodnet_' + model_type
     patch_details = PatchDetails(32, 24, 102, 4000, 3000)
+
+
+class FloodNetDatasetMultiResSingleOut(FloodNetDataset):
+    model_type = "multi_res_single_out"
+    name = "floodnet_" + model_type
+    patch_details = PatchDetails(8, 6, 500, 4000, 3000)
+
+    @classmethod
+    @overrides
+    def load_bags(cls, split):
+        # Replace default instance targets with smallest patch size (scale=m)
+        bags, targets, _, bags_metadata = super().load_bags(split)
+        metadata_df = _load_metadata_df()
+        split_df = metadata_df[metadata_df['split'] == split]
+        instance_targets = cls._parse_instance_targets(split_df, cell_size_x=500)
+        return bags, targets, instance_targets, bags_metadata
 
 
 if __name__ == "__main__":
