@@ -44,26 +44,34 @@ def parse_raw_results(file, model_names, n_expected_blocks, include_patch_size_i
     return rows, means
 
 
-def run(reduced=False):
+def run(dataset, reduced=False):
     # Aggregate lists of data parsed from all files
     rows = [['Configuration', 'Scene RMSE', 'Scene MAE', 'Patch mIoU', 'Pixel mIoU']]
     means = []
 
+    if dataset == 'dgr':
+        single_res_file = "results/DeepGlobe/single_res_raw_results_dgr.txt"
+        multi_res_single_out_file = "results/DeepGlobe/multi_res_single_out_raw_results_dgr.txt"
+        multi_res_multi_out_file = "results/DeepGlobe/multi_res_multi_out_raw_results_dgr.txt"
+    elif dataset == 'floodnet':
+        single_res_file = "results/FloodNet/single_res_raw_results_floodnet.txt"
+        multi_res_single_out_file = "results/FloodNet/multi_res_single_out_raw_results_floodnet.txt"
+        multi_res_multi_out_file = "results/FloodNet/multi_res_multi_out_raw_results_floodnet.txt"
+    else:
+        raise NotImplementedError
+
     # Parse single res results
-    single_res_file = "results/single_res_raw_results.txt"
     if reduced:
-        single_res_model_names = ['resnet', 'unet224', 'unet448', '8_large', '16_medium', '24_medium', '32_large']
+        single_res_model_names = ['resnet', 'unet224', 'unet448', '8_large', '16_medium', '32_small']
     else:
         single_res_model_names = ['resnet', 'unet224', 'unet448', '8_small', '8_medium', '8_large', '16_small',
-                                  '16_medium', '16_large', '24_small', '24_medium', '24_large',
-                                  '32_small', '32_medium', '32_large']
-    single_res_out_rows, single_res_out_means = parse_raw_results(single_res_file, single_res_model_names, 15,
+                                  '16_medium', '16_large', '32_small', '32_medium', '32_large']
+    single_res_out_rows, single_res_out_means = parse_raw_results(single_res_file, single_res_model_names, 12,
                                                                   include_patch_size_in_names=not reduced)
     rows += single_res_out_rows
     means += single_res_out_means
 
     # Parse multi res single out results
-    multi_res_single_out_file = "results/multi_res_single_out_raw_results.txt"
     multi_res_single_out_modes = ['multi_res_single_out']
     multi_res_single_out_rows, multi_res_single_out_means = parse_raw_results(multi_res_single_out_file,
                                                                               multi_res_single_out_modes, 1,
@@ -72,7 +80,6 @@ def run(reduced=False):
     means += multi_res_single_out_means
 
     # Parse multi res multi out results
-    multi_res_multi_out_file = "results/multi_res_multi_out_raw_results.txt"
     multi_res_multi_out_models = ['s=0', 's=1', 's=2', 's=m']
     multi_res_multi_out_rows, multi_res_multi_out_means = parse_raw_results(multi_res_multi_out_file,
                                                                             multi_res_multi_out_models, 4,
@@ -134,7 +141,14 @@ def format_model_type(model_type, include_patch_size):
 
 
 if __name__ == "__main__":
-    print('-- Complete --')
-    run(reduced=False)
-    print('\n-- Reduced --')
-    run(reduced=True)
+    print('-- DeepGlobe --')
+    print('- Complete -')
+    run("dgr", reduced=False)
+    print('\n- Reduced -')
+    run("dgr", reduced=True)
+
+    print('\n-- FloodNet --')
+    print('- Complete -')
+    run("floodnet", reduced=False)
+    print('\n- Reduced -')
+    run("floodnet", reduced=True)
