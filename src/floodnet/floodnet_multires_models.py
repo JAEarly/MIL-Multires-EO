@@ -1,15 +1,15 @@
+from abc import ABC
+
 import torch
 import wandb
+from matplotlib import pyplot as plt
 from torch import nn
+from torchvision.transforms import Resize
 
 from bonfire.model import aggregator as agg
 from bonfire.model import modules as mod
 from bonfire.model.models import MultipleInstanceNN
 from floodnet.floodnet_dataset import FloodNetDataset
-from matplotlib import pyplot as plt
-from abc import ABC
-
-from torchvision.transforms import Resize
 
 
 def get_model_param(key):
@@ -100,14 +100,12 @@ class FloodNetMultiResNN(MultipleInstanceNN, ABC):
         instances = instances.to(self.device)
         n_instances, n_channels = instances.shape[0], instances.shape[1]
 
-        print(bags_metadata)
-
-        from PIL import Image
-        img = Image.open('data/FloodNet/train/train-org-img/{:d}.jpg'.format(bags_metadata['id'].item()))
-
-        # TODO remove magic numbers
         # Reshape instances to grid
-        instances = instances.reshape(8, 6, n_channels, 500, 500)
+        # Manually compensate for the image orientation being incorrect
+        instances = instances.reshape(6, 8, n_channels, 500, 500)
+        instances = torch.transpose(instances, 0, 1)
+        instances = torch.flip(instances, [3])
+        instances = torch.rot90(instances, -1, [3, 4])
 
         # Extract S0 instances - Cell size 500 x 500 px; 8 x 6 grid
         #  Resize to 102 x 102 px; Eff res 816 x 612 px (4.2%)
@@ -131,9 +129,9 @@ class FloodNetMultiResNN(MultipleInstanceNN, ABC):
                     instances[:, :, :, 125 * x:125 * (x + 1), 125 * y:125 * (y + 1)]
         s2_instances = self._apply_patch_transform(s2_splits)
 
-        self._show_reconstructions(img, instances, s0_instances, s1_instances, s2_instances)
-        # self._show_reconstructions(img, instances, None, None, None)
-        exit(0)
+        # from PIL import Image
+        # img = Image.open('data/FloodNet/train/train-org-img/{:d}.jpg'.format(bags_metadata['id'].item()))
+        # self._show_reconstructions(img, instances, s0_instances, s1_instances, s2_instances)
 
         # Encode s0, s1, and s2 patches
         s0_embeddings = self.s0_encoder(torch.reshape(s0_instances, (-1, 3, 102, 102)))
@@ -153,8 +151,7 @@ class FloodNetMultiResNN(MultipleInstanceNN, ABC):
         # Class first
         ins_preds = ins_preds.swapaxes(0, 1)
         # Reshape to grid; assumes square grid
-        grid_size = int(ins_preds.shape[1] ** 0.5)
-        return ins_preds.reshape(-1, grid_size, grid_size)
+        return ins_preds.reshape(-1, 32, 24)
 
 
 class FloodNetMultiResSingleOutNN(FloodNetMultiResNN):

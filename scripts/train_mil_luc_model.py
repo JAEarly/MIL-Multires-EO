@@ -8,7 +8,7 @@ from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
 from dataset import get_dataset_clz, get_model_type_list
 from deepglobe.dgr_luc_models import get_model_clz as get_model_clz_dgr
 from floodnet.floodnet_models import get_model_clz as get_model_clz_floodnet
-from deepglobe.dgr_luc_multires_trainer import MultiResTrainer
+from multires_trainer import MultiResTrainer
 from deepglobe import dgr_luc_dataset
 from floodnet import floodnet_dataset
 
