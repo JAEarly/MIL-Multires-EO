@@ -1,0 +1,51 @@
+-- Complete --
+\begin{table}
+	\begin{center}
+		\begin{tabular}{lllll}
+			\toprule
+			Configuration & Scene RMSE & Scene MAE & Patch mIoU & Pixel mIoU \\
+			\midrule
+			ResNet18 & 0.145 $\pm$ 0.001 & 0.077 $\pm$ 0.002 & N/A & N/A \\
+			U-Net 224 & 0.083 $\pm$ 0.001 & 0.039 $\pm$ 0.001 & N/A & 0.108 $\pm$ 0.001 \\
+			U-Net 448 & 0.080 $\pm$ 0.002 & 0.037 $\pm$ 0.002 & N/A & 0.108 $\pm$ 0.001 \\
+			S2P Single Res Small 8 & 0.072 $\pm$ 0.001 & 0.031 $\pm$ 0.001 & 0.258 $\pm$ 0.003 & 0.223 $\pm$ 0.002 \\
+			S2P Single Res Medium 8 & 0.072 $\pm$ 0.001 & 0.031 $\pm$ 0.000 & 0.258 $\pm$ 0.004 & 0.224 $\pm$ 0.003 \\
+			S2P Single Res Large 8 & \textbf{0.070 $\pm$ 0.001} & \textbf{0.028 $\pm$ 0.000} & \textbf{0.273 $\pm$ 0.002} & 0.233 $\pm$ 0.002 \\
+			S2P Single Res Small 16 & 0.078 $\pm$ 0.001 & 0.035 $\pm$ 0.001 & 0.209 $\pm$ 0.006 & 0.199 $\pm$ 0.005 \\
+			S2P Single Res Medium 16 & 0.072 $\pm$ 0.001 & 0.030 $\pm$ 0.001 & 0.264 $\pm$ 0.003 & 0.244 $\pm$ 0.002 \\
+			S2P Single Res Large 16 & 0.073 $\pm$ 0.000 & 0.030 $\pm$ 0.001 & 0.269 $\pm$ 0.002 & 0.248 $\pm$ 0.002 \\
+			S2P Single Res Small 32 & 0.071 $\pm$ 0.001 & 0.030 $\pm$ 0.001 & 0.263 $\pm$ 0.001 & \textbf{0.253 $\pm$ 0.001} \\
+			S2P Single Res Medium 32 & 0.075 $\pm$ 0.001 & 0.033 $\pm$ 0.001 & 0.260 $\pm$ 0.004 & 0.247 $\pm$ 0.004 \\
+			S2P Single Res Large 32 & 0.072 $\pm$ 0.001 & 0.030 $\pm$ 0.001 & 0.263 $\pm$ 0.003 & 0.251 $\pm$ 0.003 \\
+			S2P Multi Res Single Out & N/A & N/A & N/A & N/A \\
+			S2P Multi Res Multi Out s=0 & N/A & N/A & N/A & N/A \\
+			S2P Multi Res Multi Out s=1 & N/A & N/A & N/A & N/A \\
+			S2P Multi Res Multi Out s=2 & N/A & N/A & N/A & N/A \\
+			S2P Multi Res Multi Out s=m & N/A & N/A & N/A & N/A \\
+			\bottomrule
+		\end{tabular}
+	\end{center}
+\end{table}
+
+-- Reduced --
+\begin{table}
+	\begin{center}
+		\begin{tabular}{lllll}
+			\toprule
+			Configuration & Scene RMSE & Scene MAE & Patch mIoU & Pixel mIoU \\
+			\midrule
+			ResNet18 & 0.145 $\pm$ 0.001 & 0.077 $\pm$ 0.002 & N/A & N/A \\
+			U-Net 224 & 0.083 $\pm$ 0.001 & 0.039 $\pm$ 0.001 & N/A & 0.108 $\pm$ 0.001 \\
+			U-Net 448 & 0.080 $\pm$ 0.002 & 0.037 $\pm$ 0.002 & N/A & 0.108 $\pm$ 0.001 \\
+			S2P Single Res 8 & \textbf{0.070 $\pm$ 0.001} & \textbf{0.028 $\pm$ 0.000} & \textbf{0.273 $\pm$ 0.002} & 0.233 $\pm$ 0.002 \\
+			S2P Single Res 16 & 0.072 $\pm$ 0.001 & 0.030 $\pm$ 0.001 & 0.264 $\pm$ 0.003 & 0.244 $\pm$ 0.002 \\
+			S2P Single Res 32 & 0.072 $\pm$ 0.001 & 0.030 $\pm$ 0.001 & 0.263 $\pm$ 0.003 & \textbf{0.251 $\pm$ 0.003} \\
+			S2P Multi Res Single Out & N/A & N/A & N/A & N/A \\
+			S2P Multi Res Multi Out s=0 & N/A & N/A & N/A & N/A \\
+			S2P Multi Res Multi Out s=1 & N/A & N/A & N/A & N/A \\
+			S2P Multi Res Multi Out s=2 & N/A & N/A & N/A & N/A \\
+			S2P Multi Res Multi Out s=m & N/A & N/A & N/A & N/A \\
+			\bottomrule
+		\end{tabular}
+	\end{center}
+\end{table}
