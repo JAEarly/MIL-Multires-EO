@@ -36,7 +36,7 @@ def get_dataset_list():
         FloodNetDataset8Small, FloodNetDataset8Medium, FloodNetDataset8Large,
         FloodNetDataset16Small, FloodNetDataset16Medium, FloodNetDataset16Large,
         FloodNetDataset32Small, FloodNetDataset32Medium, FloodNetDataset32Large,
-        FloodNetDatasetMultiResSingleOut,
+        FloodNetDatasetMultiResSingleOut, FloodNetDatasetMultiResMultiOut
     ]
 
 
@@ -310,9 +310,7 @@ class FloodNetDataset(MilDataset, ABC):
         metadata = self.bags_metadata[bag_idx]
 
         # Reshape instance targets to a grid
-        bag_instance_targets = self.instance_targets[bag_idx]
-        bag_instance_targets = bag_instance_targets.swapaxes(0, 1)
-        bag_instance_targets = bag_instance_targets.reshape(-1, metadata['grid_size_x'], metadata['grid_size_y'])
+        bag_instance_targets = self._get_instances(bag_idx, metadata)
 
         # Return required data as a dict
         data_dict = {
@@ -322,6 +320,13 @@ class FloodNetDataset(MilDataset, ABC):
             'bag_metadata': metadata,
         }
         return data_dict
+
+    def _get_instances(self, bag_idx, metadata):
+        # Reshape instance targets to a grid
+        bag_instance_targets = self.instance_targets[bag_idx]
+        bag_instance_targets = bag_instance_targets.swapaxes(0, 1)
+        bag_instance_targets = bag_instance_targets.reshape(-1, metadata['grid_size_x'], metadata['grid_size_y'])
+        return bag_instance_targets
 
 
 class FloodNetDatasetResNet(FloodNetDataset):
@@ -414,6 +419,54 @@ class FloodNetDatasetMultiResSingleOut(FloodNetDataset):
             m['grid_size_x'] = 32
             m['grid_size_y'] = 24
         return bags, targets, instance_targets, bags_metadata
+
+
+class FloodNetDatasetMultiResMultiOut(FloodNetDataset):
+    model_type = "multi_res_multi_out"
+    name = "floodnet_" + model_type
+    patch_details = PatchDetails(8, 6, 500, 4000, 3000)
+
+    @classmethod
+    @overrides
+    def load_bags(cls, split):
+        bags, targets, s0_instance_targets, bags_metadata = super().load_bags(split)
+        metadata_df = _load_metadata_df()
+        split_df = metadata_df[metadata_df['split'] == split]
+        # Replace default instance targets with smallest patch size (scale=m)
+        s1_instance_targets = cls._parse_instance_targets(split_df, cell_size_x=250)
+        s2_instance_targets = cls._parse_instance_targets(split_df, cell_size_x=125)
+        multires_targets = []
+        for i in range(len(s0_instance_targets)):
+            multires_targets.append([
+                s0_instance_targets[i],
+                s1_instance_targets[i],
+                s2_instance_targets[i]
+            ])
+        # Replace default metadata with correct spec for small patch size (scale=m)
+        for m in bags_metadata:
+            del m['grid_size_x']
+            del m['grid_size_y']
+            m['s0_grid_size_x'] = 8
+            m['s0_grid_size_y'] = 6
+            m['s1_grid_size_x'] = 16
+            m['s1_grid_size_y'] = 12
+            m['s2_grid_size_x'] = 32
+            m['s2_grid_size_y'] = 24
+        return bags, targets, multires_targets, bags_metadata
+
+    @overrides
+    def _get_instances(self, bag_idx, metadata):
+        # Reshape instance targets to a grid for each scale
+        bag_instance_targets = self.instance_targets[bag_idx]
+        reshaped_instance_targets = []
+        for i in range(3):
+            s_bag_instance_targets = bag_instance_targets[i]
+            s_bag_instance_targets = s_bag_instance_targets.swapaxes(0, 1)
+            s_bag_instance_targets = s_bag_instance_targets.reshape(-1,
+                                                                    metadata['s{:d}_grid_size_x'.format(i)],
+                                                                    metadata['s{:d}_grid_size_y'.format(i)])
+            reshaped_instance_targets.append(s_bag_instance_targets)
+        return reshaped_instance_targets
 
 
 if __name__ == "__main__":

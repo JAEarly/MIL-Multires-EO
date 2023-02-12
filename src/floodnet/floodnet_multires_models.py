@@ -96,7 +96,7 @@ class FloodNetMultiResNN(MultipleInstanceNN, ABC):
         axes[4].imshow(torch.transpose(s2_reconstruction.detach().cpu(), 0, 1))
         plt.show()
 
-    def _forward_encode(self, instances, bags_metadata):
+    def _forward_encode(self, instances):
         instances = instances.to(self.device)
         n_instances, n_channels = instances.shape[0], instances.shape[1]
 
@@ -147,11 +147,11 @@ class FloodNetMultiResNN(MultipleInstanceNN, ABC):
         return s0_embeddings, s1_embeddings, s2_embeddings, sm_embeddings
 
     @staticmethod
-    def _reshape_instance_preds(ins_preds):
+    def _reshape_instance_preds(ins_preds, grid_x, grid_y):
         # Class first
         ins_preds = ins_preds.swapaxes(0, 1)
         # Reshape to grid; assumes square grid
-        return ins_preds.reshape(-1, 32, 24)
+        return ins_preds.reshape(-1, grid_x, grid_y)
 
 
 class FloodNetMultiResSingleOutNN(FloodNetMultiResNN):
@@ -166,14 +166,14 @@ class FloodNetMultiResSingleOutNN(FloodNetMultiResNN):
         all_instance_predictions = []
         for i, instances in enumerate(bags):
             # Get combined embeddings
-            _, _, _, sm_embeddings = self._forward_encode(instances, bags_metadata)
+            _, _, _, sm_embeddings = self._forward_encode(instances)
 
             # Classify instances and aggregate at each scale
             #  Here, the instance interpretations are actually predictions
             sm_bag_pred, sm_inst_preds = self.sm_aggregator(sm_embeddings)
 
             # Reshape instance preds to grid
-            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds)
+            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds, 32, 24)
 
             # Update bag outputs
             bag_predictions[i] = sm_bag_pred
@@ -215,10 +215,14 @@ class FloodNetMultiResMultiOutNN(FloodNetMultiResNN):
             sm_bag_pred, sm_inst_preds = self.sm_aggregator(sm_embeddings)
 
             # Reshape instance preds to grid
-            s0_inst_preds = self._reshape_instance_preds(s0_inst_preds)
-            s1_inst_preds = self._reshape_instance_preds(s1_inst_preds)
-            s2_inst_preds = self._reshape_instance_preds(s2_inst_preds)
-            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds)
+            s0_inst_preds = self._reshape_instance_preds(s0_inst_preds, bags_metadata['s0_grid_size_x'],
+                                                         bags_metadata['s0_grid_size_y'])
+            s1_inst_preds = self._reshape_instance_preds(s1_inst_preds, bags_metadata['s1_grid_size_x'],
+                                                         bags_metadata['s1_grid_size_y'])
+            s2_inst_preds = self._reshape_instance_preds(s2_inst_preds, bags_metadata['s2_grid_size_x'],
+                                                         bags_metadata['s2_grid_size_y'])
+            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds, bags_metadata['s2_grid_size_x'],
+                                                         bags_metadata['s2_grid_size_y'])
 
             # Update bag outputs
             bag_predictions[i, 0] = s0_bag_pred

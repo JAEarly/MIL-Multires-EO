@@ -11,7 +11,7 @@ from bonfire.model import models
 from bonfire.model import modules as mod
 from floodnet.floodnet_dataset import FloodNetDataset
 from floodnet.floodnet_unet import FloodNetUNet
-from floodnet.floodnet_multires_models import FloodNetMultiResSingleOutNN
+from floodnet.floodnet_multires_models import FloodNetMultiResSingleOutNN, FloodNetMultiResMultiOutNN
 
 
 def get_model_param(key):
@@ -31,8 +31,8 @@ def get_model_clz(model_type):
         return FloodNetUNet
     elif model_type == 'multi_res_single_out':
         return FloodNetMultiResSingleOutNN
-    # elif model_type == 'multi_res_multi_out':
-    #     return DgrMultiResMultiOutNN
+    elif model_type == 'multi_res_multi_out':
+        return FloodNetMultiResMultiOutNN
     raise ValueError('No model class found for model type {:s}'.format(model_type))
 
 
