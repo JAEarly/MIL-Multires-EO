@@ -404,11 +404,15 @@ class FloodNetDatasetMultiResSingleOut(FloodNetDataset):
     @classmethod
     @overrides
     def load_bags(cls, split):
-        # Replace default instance targets with smallest patch size (scale=m)
         bags, targets, _, bags_metadata = super().load_bags(split)
         metadata_df = _load_metadata_df()
         split_df = metadata_df[metadata_df['split'] == split]
-        instance_targets = cls._parse_instance_targets(split_df, cell_size_x=500)
+        # Replace default instance targets with smallest patch size (scale=m)
+        instance_targets = cls._parse_instance_targets(split_df, cell_size_x=125)
+        # Replace default metadata with correct spec for small patch size (scale=m)
+        for m in bags_metadata:
+            m['grid_size_x'] = 32
+            m['grid_size_y'] = 24
         return bags, targets, instance_targets, bags_metadata
 
 

@@ -13,7 +13,7 @@ plt.style.use(['science', 'bright'])
 def run():
     plotter = ResultsPlotter()
     plotter.plot_grid_size_vs_performance()
-    # plotter.plot_model_size_vs_performance()
+    plotter.plot_model_size_vs_performance()
 
 
 class ResultsPlotter:
