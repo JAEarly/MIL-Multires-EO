@@ -3,6 +3,7 @@ from abc import ABC
 from abc import abstractmethod
 from pathlib import PurePosixPath
 
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
 import torch
@@ -190,6 +191,7 @@ class FloodNetDataset(MilDataset, ABC):
     # Clz names in correct order (i.e., clz 0 = background
     clz_names = ['Background', 'Building-flooded', 'Building-non-flooded', 'Road-flooded', 'Road-non-flooded',
                  'Water', 'Tree', 'Vehicle', 'Pool', 'Grass']
+    cmap = mpl.cm.get_cmap('tab10')
 
     def __init__(self, bags, targets, instance_targets, bags_metadata):
         super().__init__(bags, targets, instance_targets, bags_metadata)
@@ -276,6 +278,20 @@ class FloodNetDataset(MilDataset, ABC):
     def mask_img_to_clz_tensor(mask_img):
         mask_clz_tensor = torch.as_tensor(np.array(mask_img).T)
         return mask_clz_tensor
+
+    @classmethod
+    def clz_idx_to_rgb(cls, clz_idx):
+        rgba = cls.cmap(clz_idx/cls.n_classes)
+        return rgba
+
+    def get_img(self, bag_idx):
+        sat_path = self.bags[bag_idx]
+        img = Image.open(sat_path)
+        return img
+
+    def get_mask_img(self, bag_idx):
+        mask_img = Image.open(self.bags_metadata[bag_idx]['mask_path'])
+        return mask_img
 
     def __getitem__(self, bag_idx):
         # Load original satellite and mask images
