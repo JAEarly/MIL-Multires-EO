@@ -93,7 +93,7 @@ def run_evaluation():
     print('\nGrid Segmentation Results')
     output_results(model_types, grid_seg_results, sort=False)
     print('\nHigh-Res Segmentation Results')
-    output_results(model_types, orig_seg_results, sort=False)
+    output_results(model_types, orig_seg_results, sort=False, conf_mats=True)
 
 
 def evaluate(model_type, n_repeats, trainer, random_state=5):
