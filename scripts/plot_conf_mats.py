@@ -45,7 +45,7 @@ def plot_conf_mats(floodnet_model_names, conf_mats):
 
     fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(13, 5.5))
 
-    for i in range(2):
+    for i in range(4):
         row_norm_test_conf_mat = f.normalize(conf_mats[i], p=1, dim=1)
         plot_conf_mat(axes[0][i], row_norm_test_conf_mat)
         plot_per_class_recall(axes[1][i], conf_mats[i])
@@ -76,8 +76,11 @@ def plot_conf_mat(axis, conf_mat, vmax=None, label_x=True, label_y=True):
 
 def plot_per_class_recall(axis, conf_mat):
     per_class_recall = torch.diag(conf_mat) / torch.sum(conf_mat, dim=1)
+    avg_recall = torch.mean(per_class_recall)
     xs = list(range(len(per_class_recall)))
     axis.bar(xs, per_class_recall)
+    axis.plot([-0.6, 9.6], [avg_recall] * 2, c=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], ls='--')
+    axis.text(-0.3, 0.93, '{:.3f}'.format(avg_recall), c=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
     axis.tick_params(axis='x', which='both', top=False, bottom=False, labeltop=False, labelbottom=True)
     axis.set_xticks(xs)
     # axis.set_xlabel('Class', size=13)
