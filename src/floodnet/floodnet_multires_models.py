@@ -77,10 +77,10 @@ class FloodNetMultiResNN(MultipleInstanceNN, ABC):
         return reconstruction
 
     def _show_reconstructions(self, orig_img, orig_instances, s0_instances, s1_instances, s2_instances):
-        orig_reconstruction = self._reconstruct_img_from_grid(orig_instances, 8, 6, patch_size=500)
-        s0_reconstruction = self._reconstruct_img_from_grid(s0_instances, 8, 6)
-        s1_reconstruction = self._reconstruct_img_from_grid(s1_instances, 16, 12)
-        s2_reconstruction = self._reconstruct_img_from_grid(s2_instances, 32, 24)
+        orig_reconstruction = self._reconstruct_img_from_grid(orig_instances, 6, 8, patch_size=500)
+        s0_reconstruction = self._reconstruct_img_from_grid(s0_instances, 6, 8)
+        s1_reconstruction = self._reconstruct_img_from_grid(s1_instances, 12, 16)
+        s2_reconstruction = self._reconstruct_img_from_grid(s2_instances, 24, 32)
 
         print(orig_img.width, orig_img.height)
         print(orig_reconstruction.shape)
@@ -90,22 +90,18 @@ class FloodNetMultiResNN(MultipleInstanceNN, ABC):
 
         fig, axes = plt.subplots(nrows=1, ncols=5)
         axes[0].imshow(orig_img)
-        axes[1].imshow(torch.transpose(orig_reconstruction.detach().cpu(), 0, 1))
-        axes[2].imshow(torch.transpose(s0_reconstruction.detach().cpu(), 0, 1))
-        axes[3].imshow(torch.transpose(s1_reconstruction.detach().cpu(), 0, 1))
-        axes[4].imshow(torch.transpose(s2_reconstruction.detach().cpu(), 0, 1))
+        axes[1].imshow(orig_reconstruction.detach().cpu())
+        axes[2].imshow(s0_reconstruction.detach().cpu())
+        axes[3].imshow(s1_reconstruction.detach().cpu())
+        axes[4].imshow(s2_reconstruction.detach().cpu())
         plt.show()
 
-    def _forward_encode(self, instances):
+    def _forward_encode(self, instances, bags_metadata=None):
         instances = instances.to(self.device)
         n_instances, n_channels = instances.shape[0], instances.shape[1]
 
         # Reshape instances to grid
-        # Manually compensate for the image orientation being incorrect
         instances = instances.reshape(6, 8, n_channels, 500, 500)
-        instances = torch.transpose(instances, 0, 1)
-        instances = torch.flip(instances, [3])
-        instances = torch.rot90(instances, -1, [3, 4])
 
         # Extract S0 instances - Cell size 500 x 500 px; 8 x 6 grid
         #  Resize to 102 x 102 px; Eff res 816 x 612 px (4.2%)
@@ -113,7 +109,7 @@ class FloodNetMultiResNN(MultipleInstanceNN, ABC):
 
         # Extract S1 instances - Cell size 250 x 250 px; 16 x 12 grid
         #  Resize to 102 x 102 px; Eff res 1,632 x 1,224 px (16.6%)
-        s1_splits = torch.zeros(16, 12, n_channels, 250, 250).to(self.device)
+        s1_splits = torch.zeros(12, 16, n_channels, 250, 250).to(self.device)
         s1_splits[::2, ::2, :, :, :] = instances[:, :, :, :250, :250]
         s1_splits[::2, 1::2, :, :, :] = instances[:, :, :, :250, 250:]
         s1_splits[1::2, ::2, :, :, :] = instances[:, :, :, 250:, :250]
@@ -122,7 +118,7 @@ class FloodNetMultiResNN(MultipleInstanceNN, ABC):
 
         # Extract S2 instances - Cell size 125 x 125 px; 32 x 24 grid
         #  Resize to 102 x 102 px; Eff res 3264 x 2448 px (66.6%)
-        s2_splits = torch.zeros(32, 24, n_channels, 125, 125).to(self.device)
+        s2_splits = torch.zeros(24, 32, n_channels, 125, 125).to(self.device)
         for x in range(4):
             for y in range(4):
                 s2_splits[x::4, y::4, :, :, :] = \
@@ -139,19 +135,27 @@ class FloodNetMultiResNN(MultipleInstanceNN, ABC):
         s2_embeddings = self.s2_encoder(torch.reshape(s2_instances, (-1, 3, 102, 102)))
 
         # Create main embeddings (sm) by stacking s0, s1, and s2 embedding
-        s0_embeddings_r = torch.repeat_interleave(s0_embeddings, 16, dim=0)
-        s1_embeddings_r = torch.repeat_interleave(s1_embeddings, 4, dim=0)
+        s0_embeddings_r = self._expand_scale(s0_embeddings, 4, 32)
+        s1_embeddings_r = self._expand_scale(s1_embeddings, 2, 32)
         sm_embeddings = torch.cat([s0_embeddings_r, s1_embeddings_r, s2_embeddings], dim=1)
 
         # Return embeddings at three different scales + one combined scale
         return s0_embeddings, s1_embeddings, s2_embeddings, sm_embeddings
 
     @staticmethod
-    def _reshape_instance_preds(ins_preds, grid_x, grid_y):
+    def _expand_scale(embeddings, scale, grid_size_x):
+        r = torch.repeat_interleave(embeddings, scale, dim=0)
+        r = torch.reshape(r, (-1, grid_size_x, FLOODNET_D_ENC))
+        r = torch.repeat_interleave(r, scale, 0)
+        r = torch.reshape(r, (-1, FLOODNET_D_ENC))
+        return r
+
+    @staticmethod
+    def _reshape_instance_preds(ins_preds, grid_n_rows, grid_n_cols):
         # Class first
         ins_preds = ins_preds.swapaxes(0, 1)
         # Reshape to grid; assumes square grid
-        return ins_preds.reshape(-1, grid_x, grid_y)
+        return ins_preds.reshape(-1, grid_n_rows, grid_n_cols)
 
 
 class FloodNetMultiResSingleOutNN(FloodNetMultiResNN):
@@ -166,7 +170,7 @@ class FloodNetMultiResSingleOutNN(FloodNetMultiResNN):
         all_instance_predictions = []
         for i, instances in enumerate(bags):
             # Get combined embeddings
-            _, _, _, sm_embeddings = self._forward_encode(instances)
+            _, _, _, sm_embeddings = self._forward_encode(instances, bags_metadata)
 
             # Classify instances and aggregate at each scale
             #  Here, the instance interpretations are actually predictions
@@ -205,7 +209,8 @@ class FloodNetMultiResMultiOutNN(FloodNetMultiResNN):
         all_instance_predictions = []
         for i, instances in enumerate(bags):
             # Get embeddings at each scale
-            s0_embeddings, s1_embeddings, s2_embeddings, sm_embeddings = self._forward_encode(instances)
+            encoding_out = self._forward_encode(instances, bags_metadata=bags_metadata)
+            s0_embeddings, s1_embeddings, s2_embeddings, sm_embeddings = encoding_out
 
             # Classify instances and aggregate at each scale
             #  Here, the instance interpretations are actually predictions
@@ -215,14 +220,14 @@ class FloodNetMultiResMultiOutNN(FloodNetMultiResNN):
             sm_bag_pred, sm_inst_preds = self.sm_aggregator(sm_embeddings)
 
             # Reshape instance preds to grid
-            s0_inst_preds = self._reshape_instance_preds(s0_inst_preds, bags_metadata['s0_grid_size_x'],
-                                                         bags_metadata['s0_grid_size_y'])
-            s1_inst_preds = self._reshape_instance_preds(s1_inst_preds, bags_metadata['s1_grid_size_x'],
-                                                         bags_metadata['s1_grid_size_y'])
-            s2_inst_preds = self._reshape_instance_preds(s2_inst_preds, bags_metadata['s2_grid_size_x'],
-                                                         bags_metadata['s2_grid_size_y'])
-            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds, bags_metadata['s2_grid_size_x'],
-                                                         bags_metadata['s2_grid_size_y'])
+            s0_inst_preds = self._reshape_instance_preds(s0_inst_preds, bags_metadata['s0_grid_n_rows'],
+                                                         bags_metadata['s0_grid_n_cols'])
+            s1_inst_preds = self._reshape_instance_preds(s1_inst_preds, bags_metadata['s1_grid_n_rows'],
+                                                         bags_metadata['s1_grid_n_cols'])
+            s2_inst_preds = self._reshape_instance_preds(s2_inst_preds, bags_metadata['s2_grid_n_rows'],
+                                                         bags_metadata['s2_grid_n_cols'])
+            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds, bags_metadata['s2_grid_n_rows'],
+                                                         bags_metadata['s2_grid_n_cols'])
 
             # Update bag outputs
             bag_predictions[i, 0] = s0_bag_pred

@@ -223,8 +223,8 @@ class FloodNetDataset(MilDataset, ABC):
         for idx, bag_id in enumerate(split_df['image_id'].tolist()):
             bag_metadata = {
                 'id': bag_id,
-                'grid_size_x': cls.patch_details.grid_size_x,
-                'grid_size_y': cls.patch_details.grid_size_y,
+                'grid_n_rows': cls.patch_details.grid_n_rows,
+                'grid_n_cols': cls.patch_details.grid_n_cols,
                 'mask_path': mask_paths[idx]
             }
             bags_metadata.append(bag_metadata)
@@ -233,10 +233,10 @@ class FloodNetDataset(MilDataset, ABC):
         return bags, targets, instance_targets, bags_metadata
 
     @classmethod
-    def _parse_instance_targets(cls, metadata_df, cell_size_x=None):
-        if cell_size_x is None:
-            cell_size_x = cls.patch_details.cell_size_x
-        patches_df = pd.read_csv(_get_patch_data_csv_path(cell_size_x))
+    def _parse_instance_targets(cls, metadata_df, cell_width=None):
+        if cell_width is None:
+            cell_width = cls.patch_details.cell_width
+        patches_df = pd.read_csv(_get_patch_data_csv_path(cell_width))
         # coverage_df = cls.load_per_class_coverage()
         instance_targets = []
         for image_id in metadata_df['image_id']:
@@ -299,23 +299,19 @@ class FloodNetDataset(MilDataset, ABC):
 
         # Resize to effective patch resolution before extracting
         img = Image.open(sat_path)
-        img = img.resize((self.patch_details.effective_patch_resolution_x,
-                          self.patch_details.effective_patch_resolution_y))
+        img = img.resize((self.patch_details.effective_patch_resolution_width,
+                          self.patch_details.effective_patch_resolution_height))
         img_arr = np.array(img)
-        # TODO this is technically orientated incorrectly but models are already trained this way - fixed in evaluation
-        # img_arr = np.transpose(img_arr, (1, 0, 2))
 
         # Iterate through each cell in the grid
         instances = []
-        n_x = int(img_arr.shape[0]/self.patch_details.patch_size)
-        n_y = int(img_arr.shape[1]/self.patch_details.patch_size)
-        for i_x in range(n_x):
-            for i_y in range(n_y):
+        for i_row in range(self.patch_details.grid_n_rows):
+            for i_col in range(self.patch_details.grid_n_cols):
                 # Extract patch from original image
-                p_x = i_x * self.patch_details.patch_size
-                p_y = i_y * self.patch_details.patch_size
-                instance = img_arr[p_x:p_x+self.patch_details.patch_size,
-                                   p_y:p_y+self.patch_details.patch_size,
+                p_row = i_row * self.patch_details.patch_size
+                p_col = i_col * self.patch_details.patch_size
+                instance = img_arr[p_row:p_row+self.patch_details.patch_size,
+                                   p_col:p_col+self.patch_details.patch_size,
                                    :]
                 if self.transform is not None:
                     instance = self.transform(instance)
@@ -366,61 +362,61 @@ class FloodNetDatasetUNet448(FloodNetDataset):
 class FloodNetDataset8Small(FloodNetDataset):
     model_type = "8_small"
     name = 'floodnet_' + model_type
-    patch_details = PatchDetails(8, 6, 28, 4000, 3000)
+    patch_details = PatchDetails(6, 8, 28, 4000, 3000)
 
 
 class FloodNetDataset16Small(FloodNetDataset):
     model_type = "16_small"
     name = 'floodnet_' + model_type
-    patch_details = PatchDetails(16, 12, 28, 4000, 3000)
+    patch_details = PatchDetails(12, 16, 28, 4000, 3000)
 
 
 class FloodNetDataset32Small(FloodNetDataset):
     model_type = "32_small"
     name = 'floodnet_' + model_type
-    patch_details = PatchDetails(32, 24, 28, 4000, 3000)
+    patch_details = PatchDetails(24, 32, 28, 4000, 3000)
 
 
 class FloodNetDataset8Medium(FloodNetDataset):
     model_type = "8_medium"
     name = 'floodnet_' + model_type
-    patch_details = PatchDetails(8, 6, 56, 4000, 3000)
+    patch_details = PatchDetails(6, 8, 56, 4000, 3000)
 
 
 class FloodNetDataset16Medium(FloodNetDataset):
     model_type = "16_medium"
     name = 'floodnet_' + model_type
-    patch_details = PatchDetails(16, 12, 56, 4000, 3000)
+    patch_details = PatchDetails(12, 16, 56, 4000, 3000)
 
 
 class FloodNetDataset32Medium(FloodNetDataset):
     model_type = "32_medium"
     name = 'floodnet_' + model_type
-    patch_details = PatchDetails(32, 24, 56, 4000, 3000)
+    patch_details = PatchDetails(24, 32, 56, 4000, 3000)
 
 
 class FloodNetDataset8Large(FloodNetDataset):
     model_type = "8_large"
     name = 'floodnet_' + model_type
-    patch_details = PatchDetails(8, 6, 102, 4000, 3000)
+    patch_details = PatchDetails(6, 8, 102, 4000, 3000)
 
 
 class FloodNetDataset16Large(FloodNetDataset):
     model_type = "16_large"
     name = 'floodnet_' + model_type
-    patch_details = PatchDetails(16, 12, 102, 4000, 3000)
+    patch_details = PatchDetails(12, 16, 102, 4000, 3000)
 
 
 class FloodNetDataset32Large(FloodNetDataset):
     model_type = "32_large"
     name = 'floodnet_' + model_type
-    patch_details = PatchDetails(32, 24, 102, 4000, 3000)
+    patch_details = PatchDetails(24, 32, 102, 4000, 3000)
 
 
 class FloodNetDatasetMultiResSingleOut(FloodNetDataset):
     model_type = "multi_res_single_out"
     name = "floodnet_" + model_type
-    patch_details = PatchDetails(8, 6, 500, 4000, 3000)
+    patch_details = PatchDetails(6, 8, 500, 4000, 3000)
 
     @classmethod
     @overrides
@@ -429,18 +425,18 @@ class FloodNetDatasetMultiResSingleOut(FloodNetDataset):
         metadata_df = _load_metadata_df()
         split_df = metadata_df[metadata_df['split'] == split]
         # Replace default instance targets with smallest patch size (scale=m)
-        instance_targets = cls._parse_instance_targets(split_df, cell_size_x=125)
+        instance_targets = cls._parse_instance_targets(split_df, cell_width=125)
         # Replace default metadata with correct spec for small patch size (scale=m)
         for m in bags_metadata:
-            m['grid_size_x'] = 32
-            m['grid_size_y'] = 24
+            m['grid_n_rows'] = 24
+            m['grid_n_cols'] = 32
         return bags, targets, instance_targets, bags_metadata
 
 
 class FloodNetDatasetMultiResMultiOut(FloodNetDataset):
     model_type = "multi_res_multi_out"
     name = "floodnet_" + model_type
-    patch_details = PatchDetails(8, 6, 500, 4000, 3000)
+    patch_details = PatchDetails(6, 8, 500, 4000, 3000)
 
     @classmethod
     @overrides
@@ -449,8 +445,8 @@ class FloodNetDatasetMultiResMultiOut(FloodNetDataset):
         metadata_df = _load_metadata_df()
         split_df = metadata_df[metadata_df['split'] == split]
         # Replace default instance targets with smallest patch size (scale=m)
-        s1_instance_targets = cls._parse_instance_targets(split_df, cell_size_x=250)
-        s2_instance_targets = cls._parse_instance_targets(split_df, cell_size_x=125)
+        s1_instance_targets = cls._parse_instance_targets(split_df, cell_width=250)
+        s2_instance_targets = cls._parse_instance_targets(split_df, cell_width=125)
         multires_targets = []
         for i in range(len(s0_instance_targets)):
             multires_targets.append([
@@ -460,14 +456,14 @@ class FloodNetDatasetMultiResMultiOut(FloodNetDataset):
             ])
         # Replace default metadata with correct spec for small patch size (scale=m)
         for m in bags_metadata:
-            del m['grid_size_x']
-            del m['grid_size_y']
-            m['s0_grid_size_x'] = 8
-            m['s0_grid_size_y'] = 6
-            m['s1_grid_size_x'] = 16
-            m['s1_grid_size_y'] = 12
-            m['s2_grid_size_x'] = 32
-            m['s2_grid_size_y'] = 24
+            del m['grid_n_rows']
+            del m['grid_n_cols']
+            m['s0_grid_n_rows'] = 6
+            m['s0_grid_n_cols'] = 8
+            m['s1_grid_n_rows'] = 12
+            m['s1_grid_n_cols'] = 16
+            m['s2_grid_n_rows'] = 24
+            m['s2_grid_n_cols'] = 32
         return bags, targets, multires_targets, bags_metadata
 
     @overrides
@@ -477,10 +473,11 @@ class FloodNetDatasetMultiResMultiOut(FloodNetDataset):
         reshaped_instance_targets = []
         for i in range(3):
             s_bag_instance_targets = bag_instance_targets[i]
+            # Originally (instance, class). Transform to (class, grid_row, grid_col)
             s_bag_instance_targets = s_bag_instance_targets.swapaxes(0, 1)
             s_bag_instance_targets = s_bag_instance_targets.reshape(-1,
-                                                                    metadata['s{:d}_grid_size_x'.format(i)],
-                                                                    metadata['s{:d}_grid_size_y'.format(i)])
+                                                                    metadata['s{:d}_grid_n_rows'.format(i)],
+                                                                    metadata['s{:d}_grid_n_cols'.format(i)])
             reshaped_instance_targets.append(s_bag_instance_targets)
         return reshaped_instance_targets
 
