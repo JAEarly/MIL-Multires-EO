@@ -51,6 +51,7 @@ class MultiResTrainer(Trainer):
         all_targets = []
         all_instance_preds = []
         all_instance_targets = []
+        all_metadatas = []
         model.eval()
         n = 0
         with torch.no_grad():
@@ -63,6 +64,7 @@ class MultiResTrainer(Trainer):
                 bag_pred, instance_pred = model.forward_verbose(bags, input_metadata=metadata)
                 all_preds.append(bag_pred.cpu())
                 all_targets.append(targets.cpu())
+                all_metadatas.append(metadata)
 
                 instance_pred = instance_pred[0]
                 if instance_pred is not None:
@@ -73,7 +75,7 @@ class MultiResTrainer(Trainer):
                     break
         all_preds = torch.cat(all_preds)
         all_targets = torch.cat(all_targets)
-        return all_preds, all_targets, all_instance_preds, all_instance_targets
+        return all_preds, all_targets, all_instance_preds, all_instance_targets, all_metadatas
 
     @classmethod
     @overrides

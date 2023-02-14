@@ -2,42 +2,62 @@ import argparse
 
 import latextable
 import numpy as np
+import torch
 import wandb
 from texttable import Texttable
 
 from bonfire.train.trainer import create_trainer_from_clzs, create_normal_dataloader
 from bonfire.util import get_device, load_model
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-from deepglobe.dgr_luc_dataset import get_dataset_clz
-from deepglobe.dgr_luc_models import get_model_clz
+from dataset import get_dataset_clz
+from deepglobe import dgr_luc_dataset
+from deepglobe.dgr_luc_models import get_model_clz as get_model_clz_dgr
+from evaluate_single_res_out_models import evaluate_iou_grid, evaluate_iou_segmentation
+from floodnet import floodnet_dataset
+from floodnet.floodnet_models import get_model_clz as get_model_clz_floodnet
 from multires_trainer import MultiResTrainer
-import torch
-from evaluate_luc_models import evaluate_iou_grid, evaluate_iou_segmentation
 
 device = get_device()
+dataset_choices = ["dgr", "floodnet"]
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Multi-resolution model evaluation script.')
+    parser.add_argument('dataset', choices=dataset_choices, help="Dataset to train on.")
     parser.add_argument('-r', '--n_repeats', default=1, type=int, help='The number of models to evaluate (>=1).')
     args = parser.parse_args()
-    return args.n_repeats
+    return args.dataset, args.n_repeats
 
 
 def run_evaluation():
     wandb.init()
 
-    n_repeats = parse_args()
+    dataset_name, n_repeats = parse_args()
     model_type = "multi_res_multi_out"
+
     n_scales = 4  # (0, 1, 2, m)
 
-    # print('Getting results for dataset {:s}'.format(dataset_name))
+    print('Getting results for dataset {:s}'.format(dataset_name))
     print('Running for model: {:}'.format(model_type))
 
-    model_clz = get_model_clz(model_type)
-    dataset_clz = get_dataset_clz(model_type)
+    # Get list of datasets for the given dataset type, and then get the dataset clz
+    if dataset_name == 'dgr':
+        dataset_list = dgr_luc_dataset.get_dataset_list()
+    elif dataset_name == 'floodnet':
+        dataset_list = floodnet_dataset.get_dataset_list()
+    else:
+        raise ValueError('No dataset list for dataset {:s}'.format(dataset_name))
+    dataset_clz = get_dataset_clz(model_type, dataset_list)
 
-    config_path = "config/dgr_luc_config.yaml"
+    # Get model clz
+    if dataset_name == 'dgr':
+        model_clz = get_model_clz_dgr(model_type)
+    elif dataset_name == 'floodnet':
+        model_clz = get_model_clz_floodnet(model_type)
+    else:
+        raise ValueError('No models for dataset {:s}'.format(dataset_name))
+
+    config_path = "config/model_config.yaml"
     config = parse_yaml_config(config_path)
     training_config = parse_training_config(config['training'], model_type)
     wandb.config.update(training_config, allow_val_change=True)
@@ -53,7 +73,7 @@ def run_evaluation():
     print('\nGrid Segmentation Results')
     output_iou_results(scale_names, grid_seg_results, sort=False)
     print('\nHigh-Res Segmentation Results')
-    output_iou_results(scale_names, orig_seg_results, sort=False)
+    output_iou_results(scale_names, orig_seg_results, sort=False, conf_mats=True)
 
 
 def evaluate(n_scales, n_repeats, trainer, random_state=5):
@@ -94,7 +114,8 @@ def eval_complete(trainer, model, train_dataloader, val_dataloader, test_dataloa
 def eval_model(trainer, model, dataloader, verbose=False):
     # Iterate through data loader and gather preds and targets
     model_outs = trainer.get_model_outputs_for_dataset(model, dataloader, lim=None)
-    all_preds, all_targets, all_instance_preds, all_instance_targets, all_mask_paths = model_outs
+    all_preds, all_targets, all_instance_preds, all_instance_targets, all_metadatas = model_outs
+
     labels = list(range(model.n_classes))
 
     # Calculate bag results
@@ -107,22 +128,14 @@ def eval_model(trainer, model, dataloader, verbose=False):
     all_grid_results = []
     all_seg_results = []
     for scale_idx in range(4):
+        # Only three target scales (as 2 and m are the same)
+        target_scale_idx = scale_idx if scale_idx < 3 else 2
+        scale_instance_targets = torch.stack([p[target_scale_idx] for p in all_instance_targets]).squeeze()
         scale_instance_preds = torch.stack([p[scale_idx] for p in all_instance_preds])
-        if scale_idx == 0:
-            scale_instance_targets = torch.stack([t.squeeze()[:64, :] for t in all_instance_targets])
-        elif scale_idx == 1:
-            scale_instance_targets = torch.stack([t.squeeze()[64:64+256, :] for t in all_instance_targets])
-        else:
-            scale_instance_targets = torch.stack([t.squeeze()[256+64:, :] for t in all_instance_targets])
 
-        # Wrangle targets to grid shape
-        #  Swap class and instance axes
-        #  Reshape to match the image grid
-        grid_targets = scale_instance_targets\
-            .swapaxes(1, 2)\
-            .reshape(-1, len(labels), scale_instance_preds.shape[2], scale_instance_preds.shape[3])
-        grid_results = evaluate_iou_grid(scale_instance_preds, grid_targets, labels)
-        seg_results = evaluate_iou_segmentation(dataloader.dataset, scale_instance_preds, labels, all_mask_paths)
+        grid_results = evaluate_iou_grid(scale_instance_preds, scale_instance_targets, labels)
+        seg_results = evaluate_iou_segmentation(scale_instance_preds, labels, all_metadatas,
+                                                dataloader.dataset.mask_img_to_clz_tensor)
 
         all_grid_results.append(grid_results)
         all_seg_results.append(seg_results)
@@ -170,18 +183,26 @@ def output_multi_res_bag_results(model_names, results_arr, n_scales, sort=True, 
         print(latextable.draw_latex(table))
 
 
-def output_iou_results(model_names, results_arr, sort=True, latex=False):
+def output_iou_results(model_names, results_arr, sort=True, latex=False, conf_mats=False):
     n_repeats, _, n_scales = results_arr.shape
     results = np.empty((n_scales, 3), dtype=object)
     mean_test_ious = []
+    test_conf_mats = []
     for scale_idx in range(n_scales):
         model_results = results_arr[:, :, scale_idx]
         expanded_model_results = np.empty((n_repeats, 3), dtype=float)
+        model_test_conf_mats = []
         for repeat_idx in range(n_repeats):
             train_results, val_results, test_results = model_results[repeat_idx]
             expanded_model_results[repeat_idx, :] = [train_results.mean_iou,
                                                      val_results.mean_iou,
                                                      test_results.mean_iou]
+            model_test_conf_mats.append(test_results.conf_mat)
+
+        # Compute average confusion matrix and append to list
+        mean_test_conf_mat = torch.mean(torch.stack(model_test_conf_mats), dim=0)
+        test_conf_mats.append(mean_test_conf_mat)
+
         mean = np.mean(expanded_model_results, axis=0)
         sem = np.std(expanded_model_results, axis=0) / np.sqrt(len(expanded_model_results))
         mean_test_ious.append(mean[2])
@@ -199,6 +220,16 @@ def output_iou_results(model_names, results_arr, sort=True, latex=False):
     print(table.draw())
     if latex:
         print(latextable.draw_latex(table))
+    if conf_mats:
+        for idx, conf_mat in enumerate(test_conf_mats):
+            print(model_names[idx])
+            conf_mat_rows = [['{:.4f}'.format(c) for c in r] for r in conf_mat]
+            table = Texttable()
+            table.set_cols_dtype(['t'] * len(conf_mat[0]))
+            table.set_cols_align(['c'] * len(conf_mat[0]))
+            table.add_rows(conf_mat_rows, header=False)
+            table.set_max_width(0)
+            print(table.draw())
 
 
 if __name__ == "__main__":
