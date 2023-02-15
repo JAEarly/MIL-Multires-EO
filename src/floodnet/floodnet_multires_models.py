@@ -209,7 +209,8 @@ class FloodNetMultiResMultiOutNN(FloodNetMultiResNN):
         all_instance_predictions = []
         for i, instances in enumerate(bags):
             # Get embeddings at each scale
-            encoding_out = self._forward_encode(instances, bags_metadata=bags_metadata)
+            bag_metadata = bags_metadata[i]
+            encoding_out = self._forward_encode(instances, bags_metadata=bag_metadata)
             s0_embeddings, s1_embeddings, s2_embeddings, sm_embeddings = encoding_out
 
             # Classify instances and aggregate at each scale
@@ -220,14 +221,14 @@ class FloodNetMultiResMultiOutNN(FloodNetMultiResNN):
             sm_bag_pred, sm_inst_preds = self.sm_aggregator(sm_embeddings)
 
             # Reshape instance preds to grid
-            s0_inst_preds = self._reshape_instance_preds(s0_inst_preds, bags_metadata['s0_grid_n_rows'],
-                                                         bags_metadata['s0_grid_n_cols'])
-            s1_inst_preds = self._reshape_instance_preds(s1_inst_preds, bags_metadata['s1_grid_n_rows'],
-                                                         bags_metadata['s1_grid_n_cols'])
-            s2_inst_preds = self._reshape_instance_preds(s2_inst_preds, bags_metadata['s2_grid_n_rows'],
-                                                         bags_metadata['s2_grid_n_cols'])
-            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds, bags_metadata['s2_grid_n_rows'],
-                                                         bags_metadata['s2_grid_n_cols'])
+            s0_inst_preds = self._reshape_instance_preds(s0_inst_preds, bag_metadata['s0_grid_n_rows'],
+                                                         bag_metadata['s0_grid_n_cols'])
+            s1_inst_preds = self._reshape_instance_preds(s1_inst_preds, bag_metadata['s1_grid_n_rows'],
+                                                         bag_metadata['s1_grid_n_cols'])
+            s2_inst_preds = self._reshape_instance_preds(s2_inst_preds, bag_metadata['s2_grid_n_rows'],
+                                                         bag_metadata['s2_grid_n_cols'])
+            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds, bag_metadata['s2_grid_n_rows'],
+                                                         bag_metadata['s2_grid_n_cols'])
 
             # Update bag outputs
             bag_predictions[i, 0] = s0_bag_pred

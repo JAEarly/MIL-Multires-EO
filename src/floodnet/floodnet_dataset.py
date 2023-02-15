@@ -123,13 +123,14 @@ def _setup_patch_csv(metadata_df, patch_details):
     :param metadata_df: Dataframe of image metadata.
     """
     print('Setting up patch csv')
-    print(' Cell size: {:d}'.format(patch_details.cell_size_x))
+    print(' Cell size: {:d} x {:d}'.format(patch_details.cell_width, patch_details.cell_height))
     print(' Patch size: {:d}'.format(patch_details.patch_size))
+    print(' Grid: {:d} x {:d}'.format(patch_details.grid_n_rows, patch_details.grid_n_cols))
     print(' {:d} patches per image'.format(patch_details.num_patches))
-    print(' {:d} x {:d} effective cell resolution'.format(patch_details.effective_cell_resolution_x,
-                                                          patch_details.effective_cell_resolution_y))
-    print(' {:d} x {:d} effective patch resolution'.format(patch_details.effective_patch_resolution_x,
-                                                           patch_details.effective_patch_resolution_y))
+    print(' {:d} x {:d} effective cell resolution'.format(patch_details.effective_cell_resolution_width,
+                                                          patch_details.effective_cell_resolution_height))
+    print(' {:d} x {:d} effective patch resolution'.format(patch_details.effective_patch_resolution_width,
+                                                           patch_details.effective_patch_resolution_height))
     print(' {:.2f}% scale'.format(patch_details.scale * 100))
 
     all_patch_data = []
@@ -139,23 +140,22 @@ def _setup_patch_csv(metadata_df, patch_details):
         image_id = metadata_df['image_id'][i]
         mask_path = metadata_df['mask_path'][i]
         mask_img = Image.open(mask_path)
-        mask_img = mask_img.resize((patch_details.effective_cell_resolution_x,
-                                    patch_details.effective_cell_resolution_y),
+        mask_img = mask_img.resize((patch_details.effective_cell_resolution_width,
+                                    patch_details.effective_cell_resolution_height),
                                    resample=Image.Resampling.NEAREST)
-        # TODO does transpose change results for DGR?
-        mask_img_arr = np.array(mask_img).T
+        mask_img_arr = np.array(mask_img)
 
         # Iterate through each cell in the grid
-        n_x = int(mask_img_arr.shape[0]/patch_details.cell_size_x)
-        n_y = int(mask_img_arr.shape[1]/patch_details.cell_size_y)
-        for i_x in range(n_x):
-            for i_y in range(n_y):
+        for i_row in range(patch_details.grid_n_rows):
+            for i_col in range(patch_details.grid_n_cols):
                 # Extract patch from original image
-                p_x = i_x * patch_details.cell_size_x
-                p_y = i_y * patch_details.cell_size_y
-
+                p_row = i_row * patch_details.patch_size
+                p_col = i_col * patch_details.patch_size
                 # Extract mask patch from original mask
-                patch_mask_arr = mask_img_arr[p_x:p_x+patch_details.cell_size_x, p_y:p_y+patch_details.cell_size_y]
+                patch_mask_arr = mask_img_arr[
+                                    p_row:p_row+patch_details.cell_width,
+                                    p_col:p_col+patch_details.cell_height
+                                 ]
 
                 # Get clz coverage in this image
                 patch_targets = np.zeros(10)
@@ -164,15 +164,15 @@ def _setup_patch_csv(metadata_df, patch_details):
                     patch_targets[clz] = clz_counts[idx] / np.sum(clz_counts)
                 if abs(sum(patch_targets) - 1) > 1e-6:
                     raise AssertionError("Patch targets don't sum to one (within reasonable error): {:} {:} {:} {:} {:}"
-                                         .format(image_id, i_x, i_y, patch_targets, abs(sum(patch_targets) - 1)))
+                                         .format(image_id, i_row, i_col, patch_targets, abs(sum(patch_targets) - 1)))
 
-                patch_data = [image_id, i_x, i_y] + patch_targets.tolist()
+                patch_data = [image_id, i_row, i_col] + patch_targets.tolist()
                 all_patch_data.append(patch_data)
 
     # Save the patch dataframe
     df_cols = ['image_id', 'i_x', 'i_y'] + [FloodNetDataset.label_to_name(i) for i in range(10)]
     patches_df = pd.DataFrame(data=all_patch_data, columns=df_cols)
-    patches_df.to_csv(_get_patch_data_csv_path(patch_details.cell_size_x), index=False)
+    patches_df.to_csv(_get_patch_data_csv_path(patch_details.cell_width), index=False)
 
 
 class FloodNetDataset(MilDataset, ABC):
@@ -483,4 +483,7 @@ class FloodNetDatasetMultiResMultiOut(FloodNetDataset):
 
 
 if __name__ == "__main__":
+    setup(FloodNetDataset8Small.patch_details)
+    setup(FloodNetDataset16Small.patch_details)
     setup(FloodNetDataset32Small.patch_details)
+    setup(FloodNetDatasetResNet.patch_details)
