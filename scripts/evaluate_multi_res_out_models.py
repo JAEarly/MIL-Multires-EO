@@ -85,7 +85,7 @@ def evaluate(n_scales, n_repeats, trainer, random_state=5):
     for train_dataset, val_dataset, test_dataset in trainer.dataset_clz.create_datasets(random_state=random_state):
         print('Repeat {:d}/{:d}'.format(r + 1, n_repeats))
 
-        train_dataloader = trainer.create_dataloader(train_dataset, True, 0)
+        train_dataloader = trainer.create_dataloader(train_dataset, False, 0)
         val_dataloader = trainer.create_dataloader(val_dataset, False, 0)
         test_dataloader = trainer.create_dataloader(test_dataset, False, 0)
         model = load_model(device, trainer.dataset_clz.name, trainer.model_clz, modifier=r)

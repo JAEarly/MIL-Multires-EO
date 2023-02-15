@@ -149,8 +149,8 @@ def _setup_patch_csv(metadata_df, patch_details):
         for i_row in range(patch_details.grid_n_rows):
             for i_col in range(patch_details.grid_n_cols):
                 # Extract patch from original image
-                p_row = i_row * patch_details.patch_size
-                p_col = i_col * patch_details.patch_size
+                p_row = i_row * patch_details.cell_width
+                p_col = i_col * patch_details.cell_height
                 # Extract mask patch from original mask
                 patch_mask_arr = mask_img_arr[
                                     p_row:p_row+patch_details.cell_width,
@@ -233,13 +233,13 @@ class FloodNetDataset(MilDataset, ABC):
         return bags, targets, instance_targets, bags_metadata
 
     @classmethod
-    def _parse_instance_targets(cls, metadata_df, cell_width=None):
+    def _parse_instance_targets(cls, split_df, cell_width=None):
         if cell_width is None:
             cell_width = cls.patch_details.cell_width
         patches_df = pd.read_csv(_get_patch_data_csv_path(cell_width))
         # coverage_df = cls.load_per_class_coverage()
         instance_targets = []
-        for image_id in metadata_df['image_id']:
+        for image_id in split_df['image_id']:
             image_patch_data = patches_df.loc[patches_df['image_id'] == image_id]
             bag_instance_targets = image_patch_data[cls.clz_names].to_numpy()
             instance_targets.append(torch.as_tensor(bag_instance_targets))
@@ -322,7 +322,7 @@ class FloodNetDataset(MilDataset, ABC):
         metadata = self.bags_metadata[bag_idx]
 
         # Reshape instance targets to a grid
-        bag_instance_targets = self._get_instances(bag_idx, metadata)
+        bag_instance_targets = self._get_instance_targets(bag_idx, metadata)
 
         # Return required data as a dict
         data_dict = {
@@ -333,11 +333,11 @@ class FloodNetDataset(MilDataset, ABC):
         }
         return data_dict
 
-    def _get_instances(self, bag_idx, metadata):
+    def _get_instance_targets(self, bag_idx, metadata):
         # Reshape instance targets to a grid
         bag_instance_targets = self.instance_targets[bag_idx]
         bag_instance_targets = bag_instance_targets.swapaxes(0, 1)
-        bag_instance_targets = bag_instance_targets.reshape(-1, metadata['grid_size_x'], metadata['grid_size_y'])
+        bag_instance_targets = bag_instance_targets.reshape(-1, metadata['grid_n_rows'], metadata['grid_n_cols'])
         return bag_instance_targets
 
 
@@ -467,7 +467,7 @@ class FloodNetDatasetMultiResMultiOut(FloodNetDataset):
         return bags, targets, multires_targets, bags_metadata
 
     @overrides
-    def _get_instances(self, bag_idx, metadata):
+    def _get_instance_targets(self, bag_idx, metadata):
         # Reshape instance targets to a grid for each scale
         bag_instance_targets = self.instance_targets[bag_idx]
         reshaped_instance_targets = []
