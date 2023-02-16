@@ -41,23 +41,20 @@ def parse_conf_mats(path, n_classes):
 
 
 def plot_conf_mats(floodnet_model_names, conf_mats):
-    # Row normalise
-
     fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(13, 5.5))
 
-    for i in range(4):
+    for i in range(5):
+        # Row normalise
         row_norm_test_conf_mat = f.normalize(conf_mats[i], p=1, dim=1)
         plot_conf_mat(axes[0][i], row_norm_test_conf_mat)
         plot_per_class_recall(axes[1][i], conf_mats[i])
         axes[0][i].set_title(floodnet_model_names[i], size=15)
-
 
     axes[0][0].set_ylabel('True Label', size=14)
     axes[1][0].set_ylabel('Recall', size=14)
 
     axes[0][2].set_xlabel('Predicted Label', size=13)
     axes[1][2].set_xlabel('Class', size=13)
-
 
     plt.tight_layout()
     plt.show()

@@ -113,7 +113,7 @@ def run(dataset, reduced=False):
     table.add_rows(rows)
     table.set_max_width(0)
     print(table.draw())
-    print(latextable.draw_latex(table, use_booktabs=True))
+    return table
 
 
 def parse_split(split, idx):
@@ -141,14 +141,28 @@ def format_model_type(model_type, include_patch_size):
 
 
 if __name__ == "__main__":
+    # Summarise DeepGlobe results
     print('-- DeepGlobe --')
+    # Text table output
     print('- Complete -')
-    run("dgr", reduced=False)
+    complete_dgr_table = run("dgr", reduced=False)
     print('\n- Reduced -')
-    run("dgr", reduced=True)
+    reduced_dgr_table = run("dgr", reduced=True)
+    # Latex output
+    print('- Complete -')
+    print(latextable.draw_latex(complete_dgr_table, use_booktabs=True))
+    print('\n- Reduced -')
+    print(latextable.draw_latex(reduced_dgr_table, use_booktabs=True))
 
+    # Summarise FloodNet results
     print('\n-- FloodNet --')
+    # Text table output
     print('- Complete -')
-    run("floodnet", reduced=False)
+    complete_floodnet_table = run("floodnet", reduced=False)
     print('\n- Reduced -')
-    run("floodnet", reduced=True)
+    reduced_floodnet_table = run("floodnet", reduced=True)
+    # Latex output
+    print('- Complete -')
+    print(latextable.draw_latex(complete_floodnet_table, use_booktabs=True))
+    print('\n- Reduced -')
+    print(latextable.draw_latex(reduced_floodnet_table, use_booktabs=True))
