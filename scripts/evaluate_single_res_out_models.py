@@ -233,9 +233,9 @@ def evaluate_iou_segmentation(all_grid_predictions, labels, metadatas, mask_img_
         # fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(12, 7))
         # axes[0][0].imshow(img)
         # axes[0][1].imshow(mask_img, cmap='tab10', vmin=0, vmax=10)
-        # axes[0][2].imshow(torch.transpose(mask_clz_tensor, 0, 1), cmap='tab10', vmin=0, vmax=10)
-        # axes[1][1].imshow(torch.transpose(pred_clz_tensor, 0, 1), cmap='tab10', vmin=0, vmax=10)
-        # axes[1][2].imshow(torch.transpose(grid_clz_predictions, 0, 1), cmap='tab10', vmin=0, vmax=10)
+        # axes[0][2].imshow(mask_clz_tensor, cmap='tab10', vmin=0, vmax=10)
+        # axes[1][1].imshow(pred_clz_tensor, cmap='tab10', vmin=0, vmax=10)
+        # axes[1][2].imshow(grid_clz_predictions, cmap='tab10', vmin=0, vmax=10)
         # plt.tight_layout()
         # plt.show()
         # ----- Visual check -----

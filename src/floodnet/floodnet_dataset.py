@@ -276,7 +276,7 @@ class FloodNetDataset(MilDataset, ABC):
 
     @staticmethod
     def mask_img_to_clz_tensor(mask_img):
-        mask_clz_tensor = torch.as_tensor(np.array(mask_img).T)
+        mask_clz_tensor = torch.as_tensor(np.array(mask_img))
         return mask_clz_tensor
 
     @classmethod
