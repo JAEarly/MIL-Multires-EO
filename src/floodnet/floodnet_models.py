@@ -62,10 +62,8 @@ class FloodNetSceneToPatchNN(models.InstanceSpaceNN, ABC):
 
             # Reshape to grid
             # TODO Use of bags metadata ignores batching
-            # Manually compensate for the image orientation being incorrect
             bag_metadata = bags_metadata[bag_idx]
-            patch_preds = patch_preds.reshape(-1, bag_metadata['grid_size_y'], bag_metadata['grid_size_x'])
-            patch_preds = torch.transpose(patch_preds, 1, 2)
+            patch_preds = patch_preds.reshape(-1, bag_metadata['grid_n_rows'], bag_metadata['grid_n_cols'])
 
             # Add to overall list
             bag_patch_instance_predictions.append(patch_preds)
