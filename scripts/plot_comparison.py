@@ -12,28 +12,28 @@ plt.style.use(['science', 'bright'])
 
 def run():
     plotter = ResultsPlotter()
-    plotter.plot_grid_size_vs_performance()
-    plotter.plot_model_size_vs_performance()
+    plotter.plot_main_results()
+    plotter.plot_single_res_ablation_study()
 
 
 class ResultsPlotter:
 
     def __init__(self):
         self.grid_sizes = {
-            'S2P Single Res Small 8': 8,
-            'S2P Single Res Medium 8': 8,
-            'S2P Single Res Large 8': 8,
-            'S2P Single Res Small 16': 16,
-            'S2P Single Res Medium 16': 16,
-            'S2P Single Res Large 16': 16,
-            'S2P Single Res Small 32': 32,
-            'S2P Single Res Medium 32': 32,
-            'S2P Single Res Large 32': 32,
-            'S2P Multi Res Single Out': 32,
-            'S2P Multi Res Multi Out s=0': 8,
-            'S2P Multi Res Multi Out s=1': 16,
-            'S2P Multi Res Multi Out s=2': 32,
-            'S2P Multi Res Multi Out s=m': 32
+            'S2P SR Small s=0': 8,
+            'S2P SR Medium s=0': 8,
+            'S2P SR Large s=0': 8,
+            'S2P SR Small s=1': 16,
+            'S2P SR Medium s=1': 16,
+            'S2P SR Large s=1': 16,
+            'S2P SR Small s=2': 32,
+            'S2P SR Medium s=2': 32,
+            'S2P SR Large s=2': 32,
+            'S2P MRSO s=m': 32,
+            'S2P MRMO s=0': 8,
+            'S2P MRMO s=1': 16,
+            'S2P MRMO s=2': 32,
+            'S2P MRMO s=m': 32
         }
         self.model_names = list(self.grid_sizes.keys())
         self.dgr_results = self.parse_results("results/DeepGlobe/summarised_results_texttable_dgr.txt")
@@ -58,21 +58,29 @@ class ResultsPlotter:
             miou_sems = []
 
             for row in data:
+
+                def split_result(entry):
+                    s = entry.strip().replace("\\textbf{", "").replace("}", "").split(" $\pm$ ")
+                    return float(s[0]), float(s[1])
+
                 if row[-5].strip() != 'N/A':
-                    rmse_values.append(float(row[-5].strip().replace("\\textbf{", "")[:5]))
-                    rmse_sems.append(float(row[-5].strip().replace("\\textbf{", "")[12:17]))
+                    mean, sem = split_result(row[-5])
+                    rmse_values.append(mean)
+                    rmse_sems.append(sem)
                 else:
                     rmse_values.append(np.nan)
                     rmse_sems.append(np.nan)
                 if row[-4].strip() != 'N/A':
-                    mae_values.append(float(row[-4].strip().replace("\\textbf{", "")[:5]))
-                    mae_sems.append(float(row[-4].strip().replace("\\textbf{", "")[12:17]))
+                    mean, sem = split_result(row[-4])
+                    mae_values.append(mean)
+                    mae_sems.append(sem)
                 else:
                     mae_values.append(np.nan)
                     mae_sems.append(np.nan)
                 if row[-2].strip() != 'N/A':
-                    miou_values.append(float(row[-2].strip().replace("\\textbf{", "")[:5]))
-                    miou_sems.append(float(row[-2].strip().replace("\\textbf{", "")[12:17]))
+                    mean, sem = split_result(row[-2])
+                    miou_values.append(mean)
+                    miou_sems.append(sem)
                 else:
                     miou_values.append(np.nan)
                     miou_sems.append(np.nan)
@@ -87,60 +95,61 @@ class ResultsPlotter:
             return rmse_values_dict, rmse_sems_dict, mae_values_dict, mae_sems_dict, miou_values_dict, miou_sems_dict
 
     def model_colour(self, model_name):
-        if 'Single Res' in model_name:
+        if 'S2P SR' in model_name:
             return self.colour_cycle[0]
-        elif 'Single Out' in model_name:
+        elif 'S2P MRSO' in model_name:
             return self.colour_cycle[1]
-        elif 'Multi Out' in model_name:
-            if 's=m' in model_name:
-                return self.colour_cycle[2]
-            # If not the main output (s=m), include an alpha value to make the colour paler
-            c_rgb = ImageColor.getcolor(self.colour_cycle[2], 'RGB')
-            c1_rgba = (c_rgb[0]/255, c_rgb[1]/255, c_rgb[2]/255, 0.5)
-            return c1_rgba
+        elif 'S2P MRMO' in model_name:
+            return self.colour_cycle[2]
         raise ValueError('Colour not set for model name {:s}'.format(model_name))
 
-    def get_models_for_grid_size_comparison(self, rmse_values_dict):
-        best_8_model = np.argmin([rmse_values_dict[self.model_names[i]] for i in [0, 1, 2]])
-        best_16_model = 3 + np.argmin([rmse_values_dict[self.model_names[i]] for i in [3, 4, 5]])
-        best_32_model = 6 + np.argmin([rmse_values_dict[self.model_names[i]] for i in [6, 7, 8]])
-        # Selected models are [best_8_model, s=0 MRMO, best_16_model, s=1 MRMO, best_32_model, s=2 MRMO, MRSO, s=m MRMO]
-        model_idxs = [best_8_model, 10, best_16_model, 11, best_32_model, 12, 9, 13]
-        return model_idxs
-
-    def plot_grid_size_vs_performance(self):
+    def plot_main_results(self):
         fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(12, 4.3))
 
-        self.plot_grid_size_vs_performance_single(axes[0], *self.dgr_results)
-        self.plot_grid_size_vs_performance_single(axes[1], *self.floodnet_results)
+        self.plot_main_results_single(axes[0], *self.dgr_results)
+        self.plot_main_results_single(axes[1], *self.floodnet_results)
 
         axes[0][0].set_title('RMSE', size=12)
         axes[0][1].set_title('MAE', size=12)
         axes[0][2].set_title('mIoU', size=12)
         for i in range(3):
-            axes[1][i].set_xticks([0.5, 3.5, 7.5])
-            axes[1][i].set_xticklabels(['8', '16', '32'])
+            axes[1][i].set_xticks([0.5, 3.5, 6.5, 9.5])
+            axes[1][i].set_xticklabels(['s = 0', 's = 1', 's = 2', 's = m'])
             axes[1][i].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=True)
-        axes[1][1].set_xlabel('Grid Size', size=13)
+        # axes[1][1].set_xlabel('Grid Size', size=13)
         axes[0][0].set_ylabel('DeepGlobe', size=14)
         axes[1][0].set_ylabel('FloodNet', size=14)
 
-        labels = ['SR', 'MRMO s=\\{0,1,2\\}', 'MRSO', 'MRMO s=m']
-        legend_colours = [self.model_colour(self.model_names[i]) for i in [0, 10, 9, 13]]
+        labels = ['SR', 'MRSO', 'MRMO']
+        legend_colours = [self.model_colour(self.model_names[i]) for i in [0, 9, 13]]
         handles = [plt.Rectangle((0, 0), 1, 1, fc=c, linewidth=0) for c in legend_colours]
         fig.legend(handles=handles, labels=labels, loc='lower center', ncol=4, fontsize=13)
 
-        plt.tight_layout()
-        plt.subplots_adjust(bottom=0.198)
+        axes[0][0].set_ylim(0.075, 0.115)
+        axes[0][0].set_yticks([0.075, 0.085, 0.095, 0.105, 0.115])
+        axes[0][1].set_ylim(0.04, 0.06)
+        axes[0][1].set_yticks([0.040, 0.045, 0.050, 0.055, 0.060])
+        axes[0][2].set_ylim(0.25, 0.45)
+        axes[0][2].set_yticks([0.25, 0.30, 0.35, 0.40, 0.45])
+        axes[1][0].set_ylim(0.067, 0.075)
+        axes[1][0].set_yticks([0.067, 0.069, 0.071, 0.073, 0.075])
+        axes[1][1].set_ylim(0.024, 0.032)
+        axes[1][1].set_yticks([0.024, 0.026, 0.028, 0.030, 0.032])
+        axes[1][2].set_ylim(0.18, 0.3)
+        axes[1][2].set_yticks([0.18, 0.21, 0.24, 0.27, 0.30])
 
-        save_path = "out/fig/s2p_grid_size_vs_performance.png".format()
+        plt.tight_layout()
+        plt.subplots_adjust(bottom=0.15)
+
+        save_path = "out/fig/s2p_main_results.png".format()
         plt.savefig(save_path, dpi=300)
         plt.show()
 
-    def plot_grid_size_vs_performance_single(self, axes, rmse_values_dict, rmse_sems_dict, mae_values_dict,
-                                             mae_sems_dict, miou_values_dict, miou_sems_dict):
-        xs = [0, 1, 3, 4, 6, 7, 8, 9]
-        model_idxs = self.get_models_for_grid_size_comparison(rmse_values_dict)
+    def plot_main_results_single(self, axes, rmse_values_dict, rmse_sems_dict, mae_values_dict, mae_sems_dict,
+                                 miou_values_dict, miou_sems_dict):
+        xs = [0, 1, 3, 4, 6, 7, 9, 10]
+        # Selected models are [8_large, s=0 MRMO, 16_large, s=1 MRMO, 32_large, s=2 MRMO, MRSO, s=m MRMO]
+        model_idxs = [2, 10, 5, 11, 8, 12, 9, 13]
         rmse_ys = [rmse_values_dict[self.model_names[i]] for i in model_idxs]
         rmse_sems = [rmse_sems_dict[self.model_names[i]] for i in model_idxs]
         mae_ys = [mae_values_dict[self.model_names[i]] for i in model_idxs]
@@ -161,35 +170,48 @@ class ResultsPlotter:
         axes[2].set_xticks([])
         axes[2].yaxis.tick_right()
 
-    def plot_model_size_vs_performance(self):
+    def plot_single_res_ablation_study(self):
         fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(12, 4.3))
 
-        self.plot_model_size_vs_performance_single(axes[0], *self.dgr_results)
-        self.plot_model_size_vs_performance_single(axes[1], *self.floodnet_results)
+        self.plot_single_res_ablation_study_single(axes[0], *self.dgr_results)
+        self.plot_single_res_ablation_study_single(axes[1], *self.floodnet_results)
 
         axes[0][0].set_title('RMSE', size=12)
         axes[0][1].set_title('MAE', size=12)
         axes[0][2].set_title('mIoU', size=12)
         for i in range(3):
             axes[1][i].set_xticks([1, 5, 9, 13])
-            axes[1][i].set_xticklabels(['8', '16', '32', 'Avg'])
+            axes[1][i].set_xticklabels(['s = 0', 's = 1', 's = 2', 'Avg'])
             axes[1][i].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=True)
-        axes[1][1].set_xlabel('Grid Size', size=13)
+        # axes[1][1].set_xlabel('Grid Size', size=13)
         axes[0][0].set_ylabel('DeepGlobe', size=14)
         axes[1][0].set_ylabel('FloodNet', size=14)
+
+        axes[0][0].set_ylim(0.05, 0.13)
+        axes[0][0].set_yticks([0.05, 0.07, 0.09, 0.11, 0.13])
+        axes[0][1].set_ylim(0.03, 0.07)
+        axes[0][1].set_yticks([0.03, 0.04, 0.05, 0.06, 0.07])
+        axes[0][2].set_ylim(0.2, 0.42)
+        axes[0][2].set_yticks([0.2, 0.26, 0.32, 0.38, 0.44])
+        axes[1][0].set_ylim(0.06, 0.08)
+        axes[1][0].set_yticks([0.06, 0.065, 0.07, 0.075, 0.08])
+        axes[1][1].set_ylim(0.02, 0.036)
+        axes[1][1].set_yticks([0.020, 0.024, 0.028, 0.032, 0.036])
+        axes[1][2].set_ylim(0.15, 0.27)
+        axes[1][2].set_yticks([0.15, 0.18, 0.21, 0.24, 0.27])
 
         labels = ['Small', 'Medium', 'Large']
         handles = [plt.Rectangle((0, 0), 1, 1, fc=c, linewidth=0) for c in self.colour_cycle[:3] * 4]
         fig.legend(handles=handles, labels=labels, loc='lower center', ncol=4, fontsize=13)
 
         plt.tight_layout()
-        plt.subplots_adjust(bottom=0.198)
+        plt.subplots_adjust(bottom=0.15)
 
-        save_path = "out/fig/s2p-sr_model_size_vs_performance.png"
+        save_path = "out/fig/s2p-sr_ablation_study.png"
         plt.savefig(save_path, dpi=300)
         plt.show()
 
-    def plot_model_size_vs_performance_single(self, axes, rmse_values_dict, rmse_sems_dict, mae_values_dict,
+    def plot_single_res_ablation_study_single(self, axes, rmse_values_dict, rmse_sems_dict, mae_values_dict,
                                               mae_sems_dict, miou_values_dict, miou_sems_dict):
         model_names = self.grid_sizes.keys()
         xs = [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]
