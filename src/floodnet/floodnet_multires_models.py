@@ -177,7 +177,7 @@ class FloodNetMultiResSingleOutNN(FloodNetMultiResNN):
             sm_bag_pred, sm_inst_preds = self.sm_aggregator(sm_embeddings)
 
             # Reshape instance preds to grid
-            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds, 32, 24)
+            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds, 24, 32)
 
             # Update bag outputs
             bag_predictions[i] = sm_bag_pred
