@@ -58,38 +58,45 @@ class DgrMultiResNN(MultipleInstanceNN, ABC):
 
     def _apply_patch_transform(self, instance_grid):
         # Instance grid should be 5d: P_X x P_Y x C x H x W
-        g, c, h, w = instance_grid.shape[0], instance_grid.shape[2], instance_grid.shape[3], instance_grid.shape[4]
+        p_x, p_y, c, h, w = instance_grid.shape
         # Flatten first
         flat_grid = torch.reshape(instance_grid, (-1, c, h, w))
         # Apply transformation (resizing)
         transformed_patches = self.patch_transform(flat_grid)
         # Arrange back to grid
-        grid_out = torch.reshape(transformed_patches, (g, g, c, 76, 76))
+        grid_out = torch.reshape(transformed_patches, (p_x, p_y, c, 76, 76))
         return grid_out
 
     @staticmethod
-    def _reconstruct_img_from_grid(grid_patches, grid_size, patch_size=76):
-        reconstruction = torch.zeros(patch_size * grid_size, patch_size * grid_size, 3)
-        for x in range(grid_size):
-            for y in range(grid_size):
+    def _reconstruct_img_from_grid(grid_patches, grid_size_x, grid_size_y, patch_size=76):
+        reconstruction = torch.zeros(patch_size * grid_size_x, patch_size * grid_size_y, 3)
+        for x in range(grid_size_x):
+            for y in range(grid_size_y):
                 reconstruction[patch_size * x:patch_size * (x + 1), patch_size * y:patch_size * (y + 1), :] = \
                     torch.permute(grid_patches[x, y], (1, 2, 0))
         return reconstruction
 
-    def _show_reconstructions(self, orig_instances, s0_instances, s1_instances, s2_instances):
-        orig_reconstruction = self._reconstruct_img_from_grid(orig_instances, 8, patch_size=304)
-        s0_reconstruction = self._reconstruct_img_from_grid(s0_instances, 8)
-        s1_reconstruction = self._reconstruct_img_from_grid(s1_instances, 16)
-        s2_reconstruction = self._reconstruct_img_from_grid(s2_instances, 32)
+    def _show_reconstructions(self, orig_img, orig_instances, s0_instances, s1_instances, s2_instances):
+        orig_reconstruction = self._reconstruct_img_from_grid(orig_instances, 8, 8, patch_size=304)
+        s0_reconstruction = self._reconstruct_img_from_grid(s0_instances, 8, 8)
+        s1_reconstruction = self._reconstruct_img_from_grid(s1_instances, 16, 16)
+        s2_reconstruction = self._reconstruct_img_from_grid(s2_instances, 32, 32)
 
-        fig, axes = plt.subplots(nrows=1, ncols=4)
-        axes[0].imshow(orig_reconstruction.detach().cpu())
-        axes[1].imshow(s0_reconstruction.detach().cpu())
-        axes[2].imshow(s1_reconstruction.detach().cpu())
-        axes[3].imshow(s2_reconstruction.detach().cpu())
+        print(orig_img.width, orig_img.height)
+        print(orig_reconstruction.shape)
+        print(s0_reconstruction.shape)
+        print(s1_reconstruction.shape)
+        print(s2_reconstruction.shape)
+
+        fig, axes = plt.subplots(nrows=1, ncols=5)
+        axes[0].imshow(orig_img)
+        axes[1].imshow(orig_reconstruction.detach().cpu())
+        axes[2].imshow(s0_reconstruction.detach().cpu())
+        axes[3].imshow(s1_reconstruction.detach().cpu())
+        axes[4].imshow(s2_reconstruction.detach().cpu())
         plt.show()
 
-    def _forward_encode(self, instances):
+    def _forward_encode(self, instances, bags_metadata=None):
         instances = instances.to(self.device)
         n_instances, n_channels = instances.shape[0], instances.shape[1]
 
@@ -117,26 +124,37 @@ class DgrMultiResNN(MultipleInstanceNN, ABC):
                 s2_instances[x::4, y::4, :, :, :] = \
                     instances[:, :, :, 76 * x:76 * (x + 1), 76 * y:76 * (y + 1)]
 
+        # from PIL import Image
+        # img = Image.open('data/DeepGlobeLUC/raw/train/{:d}_sat.jpg'.format(bags_metadata['id'].item()))
+        # self._show_reconstructions(img, instances, s0_instances, s1_instances, s2_instances)
+
         # Encode s0, s1, and s2 patches
         s0_embeddings = self.s0_encoder(torch.reshape(s0_instances, (-1, 3, 76, 76)))
         s1_embeddings = self.s1_encoder(torch.reshape(s1_instances, (-1, 3, 76, 76)))
         s2_embeddings = self.s2_encoder(torch.reshape(s2_instances, (-1, 3, 76, 76)))
 
         # Create main embeddings (sm) by stacking s0, s1, and s2 embedding
-        s0_embeddings_r = torch.repeat_interleave(s0_embeddings, 16, dim=0)
-        s1_embeddings_r = torch.repeat_interleave(s1_embeddings, 4, dim=0)
+        s0_embeddings_r = self._expand_scale(s0_embeddings, 4, 32)
+        s1_embeddings_r = self._expand_scale(s1_embeddings, 2, 32)
         sm_embeddings = torch.cat([s0_embeddings_r, s1_embeddings_r, s2_embeddings], dim=1)
 
         # Return embeddings at three different scales + one combined scale
         return s0_embeddings, s1_embeddings, s2_embeddings, sm_embeddings
 
     @staticmethod
-    def _reshape_instance_preds(ins_preds):
+    def _expand_scale(embeddings, scale, grid_size_x):
+        r = torch.repeat_interleave(embeddings, scale, dim=0)
+        r = torch.reshape(r, (-1, grid_size_x, DGR_D_ENC))
+        r = torch.repeat_interleave(r, scale, 0)
+        r = torch.reshape(r, (-1, DGR_D_ENC))
+        return r
+
+    @staticmethod
+    def _reshape_instance_preds(ins_preds, grid_n_rows, grid_n_cols):
         # Class first
         ins_preds = ins_preds.swapaxes(0, 1)
         # Reshape to grid; assumes square grid
-        grid_size = int(ins_preds.shape[1] ** 0.5)
-        return ins_preds.reshape(-1, grid_size, grid_size)
+        return ins_preds.reshape(-1, grid_n_rows, grid_n_cols)
 
 
 class DgrMultiResSingleOutNN(DgrMultiResNN):
@@ -151,14 +169,14 @@ class DgrMultiResSingleOutNN(DgrMultiResNN):
         all_instance_predictions = []
         for i, instances in enumerate(bags):
             # Get combined embeddings
-            _, _, _, sm_embeddings = self._forward_encode(instances)
+            _, _, _, sm_embeddings = self._forward_encode(instances, bags_metadata=bags_metadata[i])
 
             # Classify instances and aggregate at each scale
             #  Here, the instance interpretations are actually predictions
             sm_bag_pred, sm_inst_preds = self.sm_aggregator(sm_embeddings)
 
             # Reshape instance preds to grid
-            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds)
+            sm_inst_preds = self._reshape_instance_preds(sm_inst_preds, 32, 32)
 
             # Update bag outputs
             bag_predictions[i] = sm_bag_pred

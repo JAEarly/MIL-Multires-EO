@@ -286,8 +286,8 @@ class DgrLucDataset(MilDataset, ABC):
         for idx, bag_id in enumerate(metadata_df['image_id'].tolist()):
             bag_metadata = {
                 'id': bag_id,
-                'grid_size_x': cls.patch_details.grid_size_x,
-                'grid_size_y': cls.patch_details.grid_size_y,
+                'grid_n_rows': cls.patch_details.grid_n_rows,
+                'grid_n_cols': cls.patch_details.grid_n_cols,
                 'mask_path': mask_paths[idx]
             }
             bags_metadata.append(bag_metadata)
@@ -433,26 +433,24 @@ class DgrLucDataset(MilDataset, ABC):
 
     def __getitem__(self, bag_idx):
         # Load original satellite and mask images
-        sat_path = self.bags[bag_idx]
+        img_path = self.bags[bag_idx]
 
         # Resize to effective patch resolution before extracting
-        sat_img = Image.open(sat_path)
-        sat_img.thumbnail((self.patch_details.effective_patch_resolution,
-                           self.patch_details.effective_patch_resolution))
-        sat_img_arr = np.array(sat_img)
+        img = Image.open(img_path)
+        img.thumbnail((self.patch_details.effective_patch_resolution,
+                       self.patch_details.effective_patch_resolution))
+        img_arr = np.array(img)
 
         # Iterate through each cell in the grid
         instances = []
-        n_x = int(sat_img_arr.shape[0]/self.patch_details.patch_size)
-        n_y = int(sat_img_arr.shape[1]/self.patch_details.patch_size)
-        for i_x in range(n_x):
-            for i_y in range(n_y):
+        for i_row in range(self.patch_details.grid_n_rows):
+            for i_col in range(self.patch_details.grid_n_cols):
                 # Extract patch from original image
-                p_x = i_x * self.patch_details.patch_size
-                p_y = i_y * self.patch_details.patch_size
-                instance = sat_img_arr[p_x:p_x+self.patch_details.patch_size,
-                                       p_y:p_y+self.patch_details.patch_size,
-                                       :]
+                p_row = i_row * self.patch_details.patch_size
+                p_col = i_col * self.patch_details.patch_size
+                instance = img_arr[p_row:p_row + self.patch_details.patch_size,
+                                   p_col:p_col + self.patch_details.patch_size,
+                                   :]
                 if self.transform is not None:
                     instance = self.transform(instance)
                 instances.append(instance)
@@ -462,9 +460,7 @@ class DgrLucDataset(MilDataset, ABC):
         metadata = self.bags_metadata[bag_idx]
 
         # Reshape instance targets to a grid
-        bag_instance_targets = self.instance_targets[bag_idx]
-        bag_instance_targets = bag_instance_targets.swapaxes(0, 1)
-        bag_instance_targets = bag_instance_targets.reshape(-1, metadata['grid_size_x'], metadata['grid_size_y'])
+        bag_instance_targets = self._get_instance_targets(bag_idx, metadata)
 
         # Return data as a dict
         data_dict = {
@@ -474,6 +470,13 @@ class DgrLucDataset(MilDataset, ABC):
             'bag_metadata': metadata,
         }
         return data_dict
+
+    def _get_instance_targets(self, bag_idx, metadata):
+        # Reshape instance targets to a grid
+        bag_instance_targets = self.instance_targets[bag_idx]
+        bag_instance_targets = bag_instance_targets.swapaxes(0, 1)
+        bag_instance_targets = bag_instance_targets.reshape(-1, metadata['grid_n_rows'], metadata['grid_n_cols'])
+        return bag_instance_targets
 
 
 class DgrLucDataset8Small(DgrLucDataset):
@@ -557,9 +560,14 @@ class DgrLucDatasetMultiResSingleOut(DgrLucDataset):
     @overrides
     def load_dgr_bags(cls):
         # Replace default instance targets with smallest patch size (scale=m)
-        bags, targets, _, bags_metadata, mask_paths = super().load_dgr_bags()
+        bags, targets, _, bags_metadata = super().load_dgr_bags()
+        # Replace default instance targets with smallest patch size (scale=m)
         instance_targets = cls._parse_instance_targets(76)
-        return bags, targets, instance_targets, bags_metadata, mask_paths
+        # Replace default metadata with correct spec for small patch size (scale=m)
+        for m in bags_metadata:
+            m['grid_n_rows'] = 32
+            m['grid_n_cols'] = 32
+        return bags, targets, instance_targets, bags_metadata
 
 
 class DgrLucDatasetMultiResMultiOut(DgrLucDataset):
@@ -571,10 +579,10 @@ class DgrLucDatasetMultiResMultiOut(DgrLucDataset):
     @overrides
     def load_dgr_bags(cls):
         # Also load targets for cell sizes 153 and 76 for scales s=1 and s=2 (s=m)
-        bags, targets, instance_targets, bags_metadata, mask_paths = super().load_dgr_bags()
+        bags, targets, instance_targets, bags_metadata = super().load_dgr_bags()
         t = [instance_targets, cls._parse_instance_targets(153), cls._parse_instance_targets(76)]
         multires_targets = torch.cat(t, dim=1)
-        return bags, targets, multires_targets, bags_metadata, mask_paths
+        return bags, targets, multires_targets, bags_metadata
 
 
 class DgrLucDatasetResNet(DgrLucDataset):
