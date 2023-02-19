@@ -579,10 +579,42 @@ class DgrLucDatasetMultiResMultiOut(DgrLucDataset):
     @overrides
     def load_dgr_bags(cls):
         # Also load targets for cell sizes 153 and 76 for scales s=1 and s=2 (s=m)
-        bags, targets, instance_targets, bags_metadata = super().load_dgr_bags()
-        t = [instance_targets, cls._parse_instance_targets(153), cls._parse_instance_targets(76)]
-        multires_targets = torch.cat(t, dim=1)
+        bags, targets, s0_instance_targets, bags_metadata = super().load_dgr_bags()
+        s1_instance_targets = cls._parse_instance_targets(153)
+        s2_instance_targets = cls._parse_instance_targets(76)
+        multires_targets = []
+        for i in range(len(s0_instance_targets)):
+            multires_targets.append([
+                s0_instance_targets[i],
+                s1_instance_targets[i],
+                s2_instance_targets[i]
+            ])
+        # Replace default metadata with correct spec for small patch size (scale=m)
+        for m in bags_metadata:
+            del m['grid_n_rows']
+            del m['grid_n_cols']
+            m['s0_grid_n_rows'] = 8
+            m['s0_grid_n_cols'] = 8
+            m['s1_grid_n_rows'] = 16
+            m['s1_grid_n_cols'] = 16
+            m['s2_grid_n_rows'] = 32
+            m['s2_grid_n_cols'] = 32
         return bags, targets, multires_targets, bags_metadata
+
+    @overrides
+    def _get_instance_targets(self, bag_idx, metadata):
+        # Reshape instance targets to a grid for each scale
+        bag_instance_targets = self.instance_targets[bag_idx]
+        reshaped_instance_targets = []
+        for i in range(3):
+            s_bag_instance_targets = bag_instance_targets[i]
+            # Originally (instance, class). Transform to (class, grid_row, grid_col)
+            s_bag_instance_targets = s_bag_instance_targets.swapaxes(0, 1)
+            s_bag_instance_targets = s_bag_instance_targets.reshape(-1,
+                                                                    metadata['s{:d}_grid_n_rows'.format(i)],
+                                                                    metadata['s{:d}_grid_n_cols'.format(i)])
+            reshaped_instance_targets.append(s_bag_instance_targets)
+        return reshaped_instance_targets
 
 
 class DgrLucDatasetResNet(DgrLucDataset):
