@@ -41,22 +41,32 @@ def parse_conf_mats(path, n_classes):
 
 
 def plot_conf_mats(floodnet_model_names, conf_mats):
-    fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(13, 5.5))
+    fig, axes = plt.subplots(nrows=3, ncols=len(conf_mats), figsize=(13, 6.5),
+                             gridspec_kw={'height_ratios': [3.5, 1.5, 1.5]})
 
-    for i in range(5):
+    for i, conf_mat in enumerate(conf_mats):
         # Row normalise
-        row_norm_test_conf_mat = f.normalize(conf_mats[i], p=1, dim=1)
+        row_norm_test_conf_mat = f.normalize(conf_mat, p=1, dim=1)
         plot_conf_mat(axes[0][i], row_norm_test_conf_mat)
-        plot_per_class_recall(axes[1][i], conf_mats[i])
+        plot_per_class_precision(axes[1][i], conf_mat)
+        plot_per_class_recall(axes[2][i], conf_mat)
         axes[0][i].set_title(floodnet_model_names[i], size=15)
 
     axes[0][0].set_ylabel('True Label', size=14)
-    axes[1][0].set_ylabel('Recall', size=14)
+    axes[1][0].set_ylabel('Precision', size=14)
+    axes[2][0].set_ylabel('Recall', size=14)
 
     axes[0][2].set_xlabel('Predicted Label', size=13)
-    axes[1][2].set_xlabel('Class', size=13)
+    axes[2][2].set_xlabel('Class', size=13)
+
+    for i in range(len(conf_mats)):
+        axes[1][i].set_xticklabels('')
+        if i != 0:
+            axes[1][i].set_yticklabels('')
+            axes[2][i].set_yticklabels('')
 
     plt.tight_layout()
+    plt.subplots_adjust(wspace=0.29, hspace=0.09)
     plt.show()
 
 
@@ -71,13 +81,29 @@ def plot_conf_mat(axis, conf_mat, vmax=None, label_x=True, label_y=True):
     # axis.set_ylabel('True Label', size=14)
 
 
+def plot_per_class_precision(axis, conf_mat):
+    per_class_precision = torch.diag(conf_mat) / torch.sum(conf_mat, dim=0)
+    per_class_precision = torch.nan_to_num(per_class_precision)
+    avg_precision = torch.mean(per_class_precision)
+    xs = list(range(len(per_class_precision)))
+    axis.bar(xs, per_class_precision)
+    axis.plot([-0.6, 9.6], [avg_precision] * 2, c=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], ls='--')
+    axis.text(-0.31, 0.89, '{:.3f}'.format(avg_precision), c=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
+    axis.tick_params(axis='x', which='both', top=False, bottom=False, labeltop=False, labelbottom=True)
+    axis.set_xticks(xs)
+    # axis.set_xlabel('Class', size=13)
+    # axis.set_ylabel('Recall', size=14)
+    axis.set_xlim(-0.6, 9.6)
+    axis.set_ylim(0, 1)
+
+
 def plot_per_class_recall(axis, conf_mat):
     per_class_recall = torch.diag(conf_mat) / torch.sum(conf_mat, dim=1)
     avg_recall = torch.mean(per_class_recall)
     xs = list(range(len(per_class_recall)))
     axis.bar(xs, per_class_recall)
     axis.plot([-0.6, 9.6], [avg_recall] * 2, c=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], ls='--')
-    axis.text(-0.3, 0.93, '{:.3f}'.format(avg_recall), c=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
+    axis.text(-0.3, 0.89, '{:.3f}'.format(avg_recall), c=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
     axis.tick_params(axis='x', which='both', top=False, bottom=False, labeltop=False, labelbottom=True)
     axis.set_xticks(xs)
     # axis.set_xlabel('Class', size=13)
