@@ -48,7 +48,7 @@ def parse_raw_results(file, model_names, n_expected_blocks, include_patch_size_i
 
 def parse_results(dataset, n_dec, reduced=False):
     # Aggregate lists of data parsed from all files
-    rows = [['Configuration', 'Scene RMSE', 'Scene MAE', 'Patch mIoU', 'Pixel mIoU']]
+    rows = [['Model', 'Scene RMSE', 'Scene MAE', 'Patch mIoU', 'Pixel mIoU']]
     means = []
 
     if dataset == 'dgr':

@@ -3,7 +3,7 @@
 	\begin{center}
 		\begin{tabular}{lllll}
 			\toprule
-			Configuration & Scene RMSE & Scene MAE & Patch mIoU & Pixel mIoU \\
+			Model & Scene RMSE & Scene MAE & Patch mIoU & Pixel mIoU \\
 			\midrule
 			ResNet18 & 0.145 $\pm$ 0.001 & 0.077 $\pm$ 0.002 & N/A & N/A \\
 			U-Net 224 & 0.083 $\pm$ 0.001 & 0.039 $\pm$ 0.001 & N/A & 0.193 $\pm$ 0.003 \\
@@ -32,7 +32,7 @@
 	\begin{center}
 		\begin{tabular}{lllll}
 			\toprule
-			Configuration & Scene RMSE & Scene MAE & Patch mIoU & Pixel mIoU \\
+			Model & Scene RMSE & Scene MAE & Patch mIoU & Pixel mIoU \\
 			\midrule
 			ResNet18 & 0.145 $\pm$ 0.001 & 0.077 $\pm$ 0.002 & N/A & N/A \\
 			U-Net 224 & 0.083 $\pm$ 0.001 & 0.039 $\pm$ 0.001 & N/A & 0.193 $\pm$ 0.003 \\

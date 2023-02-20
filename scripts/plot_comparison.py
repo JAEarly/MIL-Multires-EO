@@ -120,7 +120,7 @@ class ResultsPlotter:
         axes[0][0].set_ylabel('DeepGlobe', size=14)
         axes[1][0].set_ylabel('FloodNet', size=14)
 
-        labels = ['SR', 'MRSO', 'MRMO']
+        labels = ['Single Resolution', 'Multi-Resolution Single Out', 'Multi-Resolution Multi-Out']
         legend_colours = [self.model_colour(self.model_names[i]) for i in [0, 9, 13]]
         handles = [plt.Rectangle((0, 0), 1, 1, fc=c, linewidth=0) for c in legend_colours]
         fig.legend(handles=handles, labels=labels, loc='lower center', ncol=4, fontsize=13)
@@ -135,8 +135,8 @@ class ResultsPlotter:
         axes[1][0].set_yticks([0.067, 0.069, 0.071, 0.073, 0.075])
         axes[1][1].set_ylim(0.024, 0.032)
         axes[1][1].set_yticks([0.024, 0.026, 0.028, 0.030, 0.032])
-        axes[1][2].set_ylim(0.18, 0.3)
-        axes[1][2].set_yticks([0.18, 0.21, 0.24, 0.27, 0.30])
+        axes[1][2].set_ylim(0.22, 0.28)
+        axes[1][2].set_yticks([0.2, 0.22, 0.24, 0.26, 0.28])
 
         plt.tight_layout()
         plt.subplots_adjust(bottom=0.15)
