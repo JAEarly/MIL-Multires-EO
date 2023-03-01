@@ -4,9 +4,9 @@ import wandb
 from bonfire.util import get_device
 from bonfire.util import load_model_from_path, get_default_save_path
 from bonfire.util.yaml_util import parse_yaml_config, parse_training_config
-from dgr_luc_dataset import get_dataset_clz
-from dgr_luc_interpretability import MilLucInterpretabilityStudy
-from dgr_luc_models import get_model_clz
+from deepglobe.dgr_luc_dataset import get_dataset_clz
+from deepglobe.dgr_luc_interpretability import MilLucInterpretabilityStudy
+from deepglobe.dgr_luc_models import get_model_clz
 from matplotlib.gridspec import GridSpec
 
 device = get_device()
@@ -14,7 +14,7 @@ device = get_device()
 
 def run():
     model_types = ['8_large', '16_medium', '24_medium', 'unet224', 'unet448']
-    model_names = ['S2P 8', 'S2P 16', 'S2P 24', 'UNet 224', 'UNet 448']
+    model_names = ['S2P 8', 'S2P 16', 'S2P 24', 'U-Net 224', 'U-Net 448']
     model_idxs = [2, 4, 2, 2, 2]
     n_models = len(model_types)
     study_id = 340798
