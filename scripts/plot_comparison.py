@@ -109,9 +109,9 @@ class ResultsPlotter:
         self.plot_main_results_single(axes[0], *self.dgr_results)
         self.plot_main_results_single(axes[1], *self.floodnet_results)
 
-        axes[0][0].set_title('RMSE', size=12)
-        axes[0][1].set_title('MAE', size=12)
-        axes[0][2].set_title('mIoU', size=12)
+        axes[0][0].set_title('Scene RMSE', size=12)
+        axes[0][1].set_title('Scene MAE', size=12)
+        axes[0][2].set_title('Pixel mIoU', size=12)
         for i in range(3):
             axes[1][i].set_xticks([0.5, 3.5, 6.5, 9.5])
             axes[1][i].set_xticklabels(['s = 0', 's = 1', 's = 2', 's = m'])
@@ -176,9 +176,9 @@ class ResultsPlotter:
         self.plot_single_res_ablation_study_single(axes[0], *self.dgr_results)
         self.plot_single_res_ablation_study_single(axes[1], *self.floodnet_results)
 
-        axes[0][0].set_title('RMSE', size=12)
-        axes[0][1].set_title('MAE', size=12)
-        axes[0][2].set_title('mIoU', size=12)
+        axes[0][0].set_title('Scene RMSE', size=12)
+        axes[0][1].set_title('Scene MAE', size=12)
+        axes[0][2].set_title('Pixel mIoU', size=12)
         for i in range(3):
             axes[1][i].set_xticks([1, 5, 9, 13])
             axes[1][i].set_xticklabels(['s = 0', 's = 1', 's = 2', 'Avg'])

@@ -632,7 +632,7 @@ class DgrLucDatasetUNet224(DgrLucDataset):
 class DgrLucDatasetUNet448(DgrLucDataset):
     model_type = "unet448"
     name = "dgr_luc_" + model_type
-    patch_details = PatchDetailsSquare(1, 224, 2448)
+    patch_details = PatchDetailsSquare(1, 448, 2448)
 
 
 if __name__ == "__main__":

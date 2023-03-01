@@ -80,7 +80,6 @@ class FloodNetUNet(models.MultipleInstanceNN):
 
             # Update outputs
             bag_predictions[i] = bag_pred
-            # TODO save segmentation outputs
             bag_cams.append(bag_cam)
         return bag_predictions, bag_cams
 

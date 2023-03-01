@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
+from matplotlib import pyplot as plt
 from overrides import overrides
 from torchvision import transforms
 from tqdm import tqdm
@@ -191,7 +192,7 @@ class FloodNetDataset(MilDataset, ABC):
     # Clz names in correct order (i.e., clz 0 = background
     clz_names = ['Background', 'Building-flooded', 'Building-non-flooded', 'Road-flooded', 'Road-non-flooded',
                  'Water', 'Tree', 'Vehicle', 'Pool', 'Grass']
-    cmap = mpl.cm.get_cmap('tab10')
+    cmap = mpl.colors.ListedColormap([plt.cm.tab10.colors[i] for i in [7, 3, 1, 4, 6, 9, 2, 5, 0, 8]])
 
     def __init__(self, bags, targets, instance_targets, bags_metadata):
         super().__init__(bags, targets, instance_targets, bags_metadata)
