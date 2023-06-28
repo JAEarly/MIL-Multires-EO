@@ -5,7 +5,7 @@ This repo contains the code for the paper "Extending Scene-to-Patch Models: Mult
 Multiple Instance Learning for Earth Observation".  
 We use [Bonfire](https://github.com/JAEarly/Bonfire) for the backend MIL functionality.
 
-![main_img](./out/interpretability/FloodNet/multi_res/311_interpretability.png)
+![main_img](./out/interpretability/paper/multi_res_example.png)
 
 
 Below we break down each of the directories in this repo:
