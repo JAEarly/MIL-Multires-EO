@@ -1,10 +1,11 @@
 
-# Scene-to-Patch Earth Observation: Multiple Instance Learning for Land Cover Classification
+# Extending Scene-to-Patch Models: Multi-Resolution Multiple Instance Learning for Earth Observation
 
-This repo contains the code for the paper Scene-to-Patch Earth Observation: Multiple Instance Learning for Land Cover Classification.  
+This repo contains the code for the paper "Extending Scene-to-Patch Models: Multi-Resolution
+Multiple Instance Learning for Earth Observation".  
 We use [Bonfire](https://github.com/JAEarly/Bonfire) for the backend MIL functionality.
 
-![main_img](./out/interpretability/paper/435277_interpretation_24_medium.png)
+![main_img](./out/interpretability/FloodNet/multi_res/311_interpretability.png)
 
 
 Below we break down each of the directories in this repo:
